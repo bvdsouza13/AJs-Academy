@@ -31,3 +31,9 @@ Child investment views emphasize percentages and life goals; parents see money a
 **Why:** The user requested simplified child-facing finance and parent visibility for every entry.
 
 **How to apply:** Do not expose private financial reports in child views or infer mental-health scores from diary text.
+
+The user explicitly chose password-free entry to the existing family child view, not a sample-data preview; the internal parent portal must remain password-protected.
+
+**Why:** After disclosure that anyone able to reach the app could access child-visible saved content, the user selected “Existing family child view.”
+
+**How to apply:** Do not reintroduce parent approval for child entry or silently substitute synthetic data. Preserve parent-only authorization and do not describe the accessible child view as anonymized. This access policy supersedes the earlier child-session approval requirement.
