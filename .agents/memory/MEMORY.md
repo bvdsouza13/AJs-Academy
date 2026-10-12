@@ -1,0 +1,2 @@
+- [Academy product rules](academy-product-rules.md) — Streamlit, iPad-first, parent-controlled rewards, private financial details, and a reserved social-skills section.
+- [Python feed parsing](python-feedparser.md) — pass downloaded RSS bytes through BytesIO to avoid a fatal file-path probe.

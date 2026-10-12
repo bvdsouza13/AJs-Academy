@@ -1,0 +1,23 @@
+kind = "web"
+previewPath = "/"
+title = "AJ’s Academy"
+description = "An iPad-first family learning hub built with Streamlit."
+version = "1.0.0"
+id = "artifacts/ajs-academy"
+router = "path"
+
+[[services]]
+name = "web"
+paths = ["/"]
+localPort = 18809
+
+[services.development]
+run = "pnpm --filter @workspace/ajs-academy run dev"
+
+[services.production]
+build = ["pnpm", "--filter", "@workspace/ajs-academy", "run", "build"]
+run = ["pnpm", "--filter", "@workspace/ajs-academy", "run", "serve"]
+
+[services.env]
+PORT = "18809"
+BASE_PATH = "/"

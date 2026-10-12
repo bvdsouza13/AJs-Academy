@@ -1,45 +1,29 @@
-# [Project name]
+# AJ’s Academy
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A private, single-family Streamlit learning hub with nine sections and a separate parent portal.
 
-## Run & Operate
+## Academy implementation
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Main app: `artifacts/ajs-academy/app.py`; visual layer: `visuals.py`; persistence: `store.py`; account calculations: `finance.py`; public-source/AI access: `content.py`; sourced college budgets: `schools.py`.
+- Managed workflow: `artifacts/ajs-academy: web`; command `pnpm --filter @workspace/ajs-academy run dev`. The registered web artifact runs Python Streamlit, not the unused React scaffold.
+- Python dependencies are managed in root `pyproject.toml` and `uv.lock`. Use the configured Python toolchain.
+- Academy uses PostgreSQL directly through psycopg. `artifacts/ajs-academy/schema.sql` is the schema source; apply deliberately before running against a new database. Do not use Drizzle schema push to manage these tables.
+- Parent access uses `PARENT_PASSWORD`. Every new child session requires parent authorization; parents can hand off using “Switch to AJ’s view.” Sessions expire after 30 minutes without interaction.
+- Private uploads use App Storage; binary data never goes into PostgreSQL. Structured family state is stored in a transactionally locked JSONB document.
+- Imported financial history currently exists in the development database only. Do not assume publishing copies it; verify schema and reimport through the parent portal in a new environment.
+- Current iteration does not claim reconciled portfolio performance: transaction net quantities are provisional. It supports public market-price history, contributions, and savings planning. Live LEGO prices/deal comparisons and automatic LinkedIn monitoring are not connected.
+- University budgets have dated sources and editable assumptions; amounts are not live quotes. Public news and YouTube require parent supervision/review. AI stories require parent approval and voice transcription is opt-in.
+- Unit/render checks use Streamlit AppTest; do not add production auth bypasses for screenshots.
 
-## Stack
+## Other workspace services
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+The pnpm workspace retains its original Express API and component-preview sandbox.
+They are separate from the Academy's Streamlit service. Python persistence does not
+use the scaffold's generated API client or Drizzle schema.
 
-## Where things live
+## Checks
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
-
-## Architecture decisions
-
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
-
-## Product
-
-_Describe the high-level user-facing capabilities of this app once they exist._
-
-## User preferences
-
-_Populate as you build — explicit user instructions worth remembering across sessions._
-
-## Gotchas
-
-_Populate as you build — sharp edges, "always run X before Y" rules._
-
-## Pointers
-
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- `python -m compileall -q artifacts/ajs-academy`
+- `pnpm --filter @workspace/ajs-academy run build`
+- Streamlit AppTest can render authenticated views in an isolated test context;
+  keep role injection in tests only, never in app routes.

@@ -1,0 +1,15 @@
+[project]
+name = "repl-nix-workspace"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.12"
+dependencies = [
+    "beautifulsoup4>=4.15.0",
+    "feedparser>=6.0.14",
+    "google-cloud-storage>=3.17.0",
+    "openai>=3.29.0",
+    "psycopg[binary]>=3.3.6",
+    "requests>=2.34.2",
+    "streamlit>=1.65.0",
+    "yfinance>=1.7.0",
+]
