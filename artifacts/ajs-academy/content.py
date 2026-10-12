@@ -33,6 +33,110 @@ SOCIAL_NEEDS = {
                        "give him a little space while staying nearby"),
 }
 
+SOCIAL_SCENARIO_ART = ("join_game", "confusing_words", "taking_turns", "ask_again")
+SOCIAL_SCENARIO_STARTERS = [
+    {
+        "starter_id": "join-game",
+        "title": "Joining a game",
+        "situation": "A few kids are playing a ball game. There is room for another player.",
+        "example": "I can walk over and ask if I can join. They can answer, and I can decide what to do next.",
+        "choices": [
+            "Could I play too?",
+            "What are the teams?",
+            "I’ll watch for a little while first.",
+        ],
+        "art": "join_game",
+    },
+    {
+        "starter_id": "confusing-words",
+        "title": "When words are confusing",
+        "situation": "Someone says something and you are not sure whether it is a joke or what it means.",
+        "example": "I do not have to guess. I can ask what the words mean or find a trusted grown-up.",
+        "choices": [
+            "Are you joking or serious?",
+            "I’m not sure what you mean. Could you explain?",
+            "I want to talk to a grown-up I trust.",
+        ],
+        "art": "confusing_words",
+    },
+    {
+        "starter_id": "taking-turns",
+        "title": "Taking turns",
+        "situation": "You and someone else want to use the same game or building pieces.",
+        "example": "We can ask about taking turns. If we need help deciding, we can ask an adult.",
+        "choices": [
+            "Can I have a turn when you’re done?",
+            "Would you like to take turns?",
+            "Can a grown-up help us decide?",
+        ],
+        "art": "taking_turns",
+    },
+    {
+        "starter_id": "ask-again",
+        "title": "Asking someone to say it again",
+        "situation": "You heard part of an instruction, but missed one of the steps.",
+        "example": "It is okay to ask for the words again or ask for one step at a time.",
+        "choices": [
+            "Could you say that again, please?",
+            "What is the first step?",
+            "Could you show me what you mean?",
+        ],
+        "art": "ask_again",
+    },
+]
+
+
+def validate_social_scenario(title, situation, example, choices, art):
+    """Return a cleaned parent-authored scenario or raise a helpful validation error."""
+    fields = {
+        "title": (title, 80, "Add a short title."),
+        "situation": (situation, 240, "Add a short situation."),
+        "example": (example, 320, "Add a kind, nonjudgmental example."),
+    }
+    cleaned = {}
+    for name, (value, limit, message) in fields.items():
+        value = re.sub(r"\s+", " ", str(value or "")).strip()
+        if not value:
+            raise ValueError(message)
+        if len(value) > limit:
+            raise ValueError(f"The {name} is too long (maximum {limit} characters).")
+        cleaned[name] = value
+    if not isinstance(choices, (list, tuple)) or len(choices) != 3:
+        raise ValueError("Add exactly three things AJ could say.")
+    cleaned_choices = [re.sub(r"\s+", " ", str(choice or "")).strip() for choice in choices]
+    if any(not choice for choice in cleaned_choices):
+        raise ValueError("Each of the three choices needs wording.")
+    if any(len(choice) > 120 for choice in cleaned_choices):
+        raise ValueError("Each choice must be 120 characters or fewer.")
+    if len({choice.casefold() for choice in cleaned_choices}) != 3:
+        raise ValueError("Make each choice different.")
+    if art not in SOCIAL_SCENARIO_ART:
+        raise ValueError("Choose one of the available scene illustrations.")
+    return {**cleaned, "choices": cleaned_choices, "art": art}
+
+
+def approved_social_scenarios(items):
+    """Expose only valid, parent-approved scenarios to the child practice view."""
+    approved = []
+    seen_ids = set()
+    for item in items if isinstance(items, (list, tuple)) else []:
+        if not isinstance(item, dict) or item.get("approved") is not True:
+            continue
+        scenario_id = str(item.get("id") or "").strip()
+        if not scenario_id or scenario_id in seen_ids:
+            continue
+        try:
+            cleaned = validate_social_scenario(
+                item.get("title"), item.get("situation"), item.get("example"),
+                item.get("choices"), item.get("art"),
+            )
+        except (TypeError, ValueError):
+            continue
+        approved.append({**cleaned, "id": scenario_id})
+        seen_ids.add(scenario_id)
+    return approved
+
+
 def social_scripts(feeling, context, need):
     """Build editable, local-only first-person wording for a child to share."""
     feeling = feeling if feeling in SOCIAL_FEELINGS else "unsure"

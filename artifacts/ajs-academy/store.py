@@ -44,7 +44,7 @@ DEFAULT = {
                  "school_costs": {}, "favorite_school": "Stanford"},
     "ledger": [], "completions": {}, "diary": [], "practice": [], "wishes": [],
     "rewards": [], "requests": [], "stories": [], "finance": {}, "approved_videos": [],
-    "social_interests": [], "social_phrases": [],
+    "social_interests": [], "social_phrases": [], "social_scenarios": [],
 }
 
 def connection():

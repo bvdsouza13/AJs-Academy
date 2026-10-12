@@ -10,6 +10,60 @@ import content
 
 
 class SocialSkillsTests(unittest.TestCase):
+    def test_starter_visual_scenarios_are_complete_and_valid(self):
+        self.assertEqual(len(content.SOCIAL_SCENARIO_STARTERS), 4)
+        for starter in content.SOCIAL_SCENARIO_STARTERS:
+            self.assertEqual(len(starter["choices"]), 3)
+            cleaned = content.validate_social_scenario(
+                starter["title"], starter["situation"], starter["example"],
+                starter["choices"], starter["art"],
+            )
+            self.assertEqual(cleaned, {
+                "title": starter["title"],
+                "situation": starter["situation"],
+                "example": starter["example"],
+                "choices": starter["choices"],
+                "art": starter["art"],
+            })
+
+    def test_scenario_validator_cleans_text_and_rejects_incomplete_or_duplicate_choices(self):
+        cleaned = content.validate_social_scenario(
+            "  Joining\n a game ", "  Kids are playing. ", " I can ask. ",
+            [" Can I play? ", "What are the teams?", "I can watch."], "join_game",
+        )
+        self.assertEqual(cleaned["title"], "Joining a game")
+        self.assertEqual(cleaned["choices"][0], "Can I play?")
+        with self.assertRaisesRegex(ValueError, "exactly three"):
+            content.validate_social_scenario("Title", "Moment", "Example", ["Only one"], "join_game")
+        with self.assertRaisesRegex(ValueError, "different"):
+            content.validate_social_scenario("Title", "Moment", "Example", ["Same", "same", "Other"], "join_game")
+        with self.assertRaisesRegex(ValueError, "illustration"):
+            content.validate_social_scenario("Title", "Moment", "Example", ["One", "Two", "Three"], "untrusted")
+
+    def test_child_view_only_receives_unique_valid_parent_approved_scenarios(self):
+        approved = {
+            **content.SOCIAL_SCENARIO_STARTERS[0],
+            "id": "approved-1",
+            "approved": True,
+        }
+        draft = {
+            **content.SOCIAL_SCENARIO_STARTERS[1],
+            "id": "draft-1",
+            "approved": False,
+        }
+        invalid_approved = {
+            **content.SOCIAL_SCENARIO_STARTERS[2],
+            "id": "invalid-1",
+            "approved": True,
+            "choices": ["Only one"],
+        }
+        duplicate = {**approved, "title": "Duplicate"}
+        result = content.approved_social_scenarios(
+            [approved, draft, invalid_approved, duplicate, None]
+        )
+        self.assertEqual([scenario["id"] for scenario in result], ["approved-1"])
+        self.assertEqual(result[0]["title"], "Joining a game")
+
     def test_scripts_are_local_first_person_and_include_chosen_need(self):
         scripts = content.social_scripts("confused", "The words changed quickly", "help understanding")
         self.assertEqual(

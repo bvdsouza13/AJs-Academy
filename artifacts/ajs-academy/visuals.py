@@ -52,9 +52,10 @@ def apply_theme() -> None:
     st.markdown(_CSS, unsafe_allow_html=True)
 
 
-def _svg(body: str, height: int, vb: str = "0 0 200 150") -> str:
+def _svg(body: str, height: int, vb: str = "0 0 200 150", label: str | None = None) -> str:
+    title = f"<title>{_html.escape(label)}</title>" if label else ""
     return (f'<div class="aj-ill"><svg xmlns="http://www.w3.org/2000/svg" viewBox="{vb}" '
-            f'height="{int(height)}" role="img">{body}</svg></div>')
+            f'height="{int(height)}" role="img">{title}{body}</svg></div>')
 
 
 def _bg(color: str) -> str:
@@ -246,3 +247,45 @@ def welcome_art() -> None:
 
 
 ILLUSTRATION_NAMES = tuple(_ART.keys())
+
+
+def scenario_illustration(kind: str, height: int = 180) -> None:
+    """Render a fixed, decorative scene for a reviewed social-practice scenario."""
+    scenes = {
+        "join_game": (
+            _bg(C["mint"])
+            + '<circle cx="100" cy="107" r="24" fill="#FFF8EC" stroke="#24364B" stroke-width="3"/>'
+            + '<circle cx="58" cy="63" r="12" fill="#FFD37A"/><circle cx="142" cy="63" r="12" fill="#FFD37A"/>'
+            + '<path d="M35 116q2-31 23-31t23 31M119 116q2-31 23-31t23 31" fill="#3E8FB0"/>'
+            + '<path d="M88 107h24m-12-12v24" stroke="#4FA37A" stroke-width="4" stroke-linecap="round"/>'
+        ),
+        "confusing_words": (
+            _bg(C["sky"])
+            + '<circle cx="68" cy="105" r="18" fill="#FFD37A"/><circle cx="132" cy="105" r="18" fill="#BFE6D3"/>'
+            + '<path d="M38 75q0-24 30-24t30 24q0 17-18 21l-2 12-14-12q-26-2-26-21z" fill="#FFF8EC" stroke="#3E8FB0" stroke-width="3"/>'
+            + '<circle cx="58" cy="75" r="3" fill="#24364B"/><circle cx="68" cy="75" r="3" fill="#24364B"/><circle cx="78" cy="75" r="3" fill="#24364B"/>'
+            + '<path d="M107 62h34a12 12 0 0 1 12 12v7a12 12 0 0 1-12 12h-7l-9 9v-9h-18a12 12 0 0 1-12-12v-7a12 12 0 0 1 12-12z" fill="#FFF8EC" stroke="#6C5B9E" stroke-width="3"/>'
+            + '<text x="127" y="83" text-anchor="middle" font-size="18" font-weight="700" fill="#6C5B9E">?</text>'
+        ),
+        "taking_turns": (
+            _bg(C["sand"])
+            + '<rect x="47" y="88" width="48" height="34" rx="6" fill="#E8776A"/><rect x="54" y="79" width="14" height="11" rx="3" fill="#E8776A"/><rect x="75" y="79" width="14" height="11" rx="3" fill="#E8776A"/>'
+            + '<rect x="105" y="88" width="48" height="34" rx="6" fill="#3E8FB0"/><rect x="112" y="79" width="14" height="11" rx="3" fill="#3E8FB0"/><rect x="133" y="79" width="14" height="11" rx="3" fill="#3E8FB0"/>'
+            + '<path d="M82 56h36m-10-10 10 10-10 10" fill="none" stroke="#24364B" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>'
+        ),
+        "ask_again": (
+            _bg(C["peach"])
+            + '<rect x="54" y="40" width="92" height="78" rx="12" fill="#FFF8EC" stroke="#3E8FB0" stroke-width="4"/>'
+            + '<path d="M72 61h54M72 78h35M72 95h43" stroke="#6C5B9E" stroke-width="5" stroke-linecap="round"/>'
+            + '<circle cx="145" cy="109" r="20" fill="#FFD37A" stroke="#24364B" stroke-width="3"/>'
+            + '<path d="M145 99v12m0 7v1" stroke="#24364B" stroke-width="4" stroke-linecap="round"/>'
+        ),
+    }
+    art = scenes.get(kind, scenes["join_game"])
+    labels = {
+        "join_game": "Illustration of children joining a ball game",
+        "confusing_words": "Illustration of a conversation with a question mark",
+        "taking_turns": "Illustration of two blocks and an arrow for taking turns",
+        "ask_again": "Illustration of a note and a question mark for asking again",
+    }
+    st.markdown(_svg(art, height, label=labels.get(kind, "Social practice scene")), unsafe_allow_html=True)

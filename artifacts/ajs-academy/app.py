@@ -41,6 +41,26 @@ def notify(message):
     st.session_state.notice = message
     st.rerun()
 
+def _skip_social_story():
+    ids = st.session_state.get("social-scenario-ids", [])
+    current = st.session_state.get("social-scenario-selected", "")
+    if len(ids) > 1 and current in ids:
+        st.session_state["social-scenario-selected"] = ids[(ids.index(current) + 1) % len(ids)]
+    else:
+        st.session_state["social-scenario-selected"] = ""
+    st.session_state.pop("social-scenario-response", None)
+
+def _stop_social_practice():
+    st.session_state["social-practice-active"] = False
+    st.session_state["social-scenario-selected"] = ""
+    st.session_state.pop("social-scenario-response", None)
+
+def _start_social_practice():
+    st.session_state["social-practice-active"] = True
+
+def _choose_social_scenario_response(scenario_id, phrase):
+    st.session_state["social-scenario-response"] = (scenario_id, phrase)
+
 def safe_error(message, exc):
     # Never print provider errors, connection strings or private content into the browser.
     st.error(message)
@@ -403,8 +423,8 @@ def ai():
 def social():
     v.hero("AJ’s Social Skills", "Find words, take a pause, and practice talking.")
     st.caption("You can skip any question. This is a helper, not a test.")
-    help_tab, meaning_tab, practice_tab, phrases_tab = st.tabs(
-        ["Help me", "What might they mean?", "Conversation practice", "My helpful words"])
+    help_tab, meaning_tab, practice_tab, stories_tab, phrases_tab = st.tabs(
+        ["Help me", "What might they mean?", "Conversation practice", "Practice stories", "My helpful words"])
 
     with help_tab:
         v.illustration("social", 150)
@@ -564,6 +584,59 @@ def social():
             st.success(f"Try asking: “{starter}”")
             st.caption("You can ask, listen, and share—or stop whenever you want. This practice is never scored.")
 
+    with stories_tab:
+        v.illustration("social", 120)
+        st.subheader("Practice a tricky moment")
+        st.write("Read a short story, then choose words you might use. You can skip or stop at any time.")
+        scenarios = content.approved_social_scenarios(state.get("social_scenarios", []))
+        if not scenarios:
+            st.info("Your parent can add and approve practice stories in the parent portal. They will appear here when ready.")
+        elif not st.session_state.get("social-practice-active", True):
+            st.caption("Practice is paused. You can come back whenever you like.")
+            st.button("Practice again", key="social-practice-start", on_click=_start_social_practice,
+                      use_container_width=True)
+        else:
+            scenario_ids = [scenario["id"] for scenario in scenarios]
+            st.session_state["social-scenario-ids"] = scenario_ids
+            options = [""] + scenario_ids
+            if st.session_state.get("social-scenario-selected") not in options:
+                st.session_state["social-scenario-selected"] = ""
+            selected = st.selectbox(
+                "Choose a story",
+                options,
+                format_func=lambda value: "Pick a story" if not value else next(
+                    scenario["title"] for scenario in scenarios if scenario["id"] == value
+                ),
+                key="social-scenario-selected",
+            )
+            if selected:
+                scenario = next(scenario for scenario in scenarios if scenario["id"] == selected)
+                v.scenario_illustration(scenario["art"])
+                with st.container(border=True):
+                    st.caption("THE MOMENT")
+                    st.write(scenario["situation"])
+                    st.caption("ONE POSSIBLE WAY")
+                    st.write(scenario["example"])
+                st.write("What might you say? There is no one right answer.")
+                for index, choice in enumerate(scenario["choices"]):
+                    st.button(
+                        choice,
+                        key=f"social-story-choice-{scenario['id']}-{index}",
+                        on_click=_choose_social_scenario_response,
+                        args=(scenario["id"], choice),
+                        use_container_width=True,
+                    )
+                response = st.session_state.get("social-scenario-response")
+                if response and response[0] == scenario["id"]:
+                    st.success(f"You could try saying: “{response[1]}”")
+                st.caption("This is practice, not a test. Nobody gets a score, and you do not have to guess what someone else means.")
+                st.button("Skip this story", key="social-story-skip", on_click=_skip_social_story,
+                          use_container_width=True)
+            else:
+                st.caption("Choose a story when you feel ready. You can stop at any time.")
+            st.button("Stop for now", key="social-story-stop", on_click=_stop_social_practice,
+                      use_container_width=True)
+
     with phrases_tab:
         st.subheader("My helpful words")
         st.caption("Only phrases you chose to save appear here. Your parent can see and remove them.")
@@ -720,6 +793,108 @@ def finance_parent(kind):
         df=pd.DataFrame(data["records"])
         st.dataframe(df,hide_index=True)
         st.download_button("Download this report",df.to_csv(index=False).encode(),"transactions.csv","text/csv",key="download-"+kind)
+
+def parent_social_scenarios(state):
+    st.subheader("Practice stories AJ can use")
+    st.caption("Stories stay hidden from AJ until you approve them. Review the wording, choices, and illustration. These are practice prompts, not tests.")
+    st.caption("Use neutral words, do not guess anyone’s intentions, and offer choices AJ can skip. Avoid scores or diagnostic labels.")
+    art_labels = {
+        "join_game": "Joining a game",
+        "confusing_words": "Confusing words",
+        "taking_turns": "Taking turns",
+        "ask_again": "Asking again",
+    }
+    current = state.get("social_scenarios", [])
+    present_starters = {item.get("starter_id") for item in current if isinstance(item, dict)}
+    missing_starters = [item for item in content.SOCIAL_SCENARIO_STARTERS
+                        if item["starter_id"] not in present_starters]
+    if missing_starters:
+        st.write("Start with drafts for joining a game, confusing words, taking turns, and asking someone to repeat an instruction.")
+        if st.button("Add starter stories as drafts", key="social-scenarios-add-starters"):
+            records = [{**scenario, "id": uuid.uuid4().hex, "approved": False}
+                       for scenario in missing_starters]
+            def add_starters(s):
+                collection = s.setdefault("social_scenarios", [])
+                existing = {item.get("starter_id") for item in collection if isinstance(item, dict)}
+                added = [item for item in records if item["starter_id"] not in existing]
+                collection.extend(added)
+                return len(added)
+            added = db.change(add_starters)
+            notify(f"Added {added} starter drafts. Review and approve each story before AJ can see it.")
+
+    st.markdown("**Add a custom story**")
+    with st.form("new-social-scenario"):
+        title = st.text_input("Story title", max_chars=80)
+        situation = st.text_area("What is happening?", max_chars=240)
+        example = st.text_area("A short, nonjudgmental example", max_chars=320)
+        choices = [st.text_input(f"Something AJ could say · {index}", max_chars=120)
+                   for index in range(1, 4)]
+        art = st.selectbox("Scene illustration", content.SOCIAL_SCENARIO_ART,
+                           format_func=lambda value: art_labels[value])
+        if st.form_submit_button("Add as a draft"):
+            try:
+                cleaned = content.validate_social_scenario(title, situation, example, choices, art)
+                db.change(lambda s:s.setdefault("social_scenarios", []).append(
+                    {**cleaned, "id": uuid.uuid4().hex, "approved": False}
+                ))
+                notify("Draft added. Review it below and approve it when you are ready.")
+            except ValueError as exc:
+                st.warning(str(exc))
+
+    current = state.get("social_scenarios", [])
+    if not current:
+        st.info("No practice stories yet. Add the starter drafts or create a custom story above.")
+    for scenario in current:
+        if not isinstance(scenario, dict) or not scenario.get("id"):
+            continue
+        scenario_id = scenario["id"]
+        title_value = str(scenario.get("title", "Practice story"))[:80]
+        status = "Approved" if scenario.get("approved") is True else "Draft"
+        with st.expander(f"{title_value} · {status}"):
+            with st.form("edit-social-scenario-"+scenario_id):
+                title = st.text_input("Story title", value=title_value, max_chars=80,
+                                      key="scenario-title-"+scenario_id)
+                situation = st.text_area("What is happening?", value=scenario.get("situation", ""),
+                                         max_chars=240, key="scenario-situation-"+scenario_id)
+                example = st.text_area("A short, nonjudgmental example", value=scenario.get("example", ""),
+                                       max_chars=320, key="scenario-example-"+scenario_id)
+                saved_choices = scenario.get("choices", [])
+                if not isinstance(saved_choices, list):
+                    saved_choices = []
+                choices = [
+                    st.text_input(f"Something AJ could say · {index}",
+                                  value=saved_choices[index-1] if len(saved_choices) >= index else "",
+                                  max_chars=120, key=f"scenario-choice-{scenario_id}-{index}")
+                    for index in range(1, 4)
+                ]
+                art_options = list(content.SOCIAL_SCENARIO_ART)
+                old_art = scenario.get("art")
+                art_index = art_options.index(old_art) if old_art in art_options else 0
+                art = st.selectbox("Scene illustration", art_options, index=art_index,
+                                   format_func=lambda value: art_labels[value],
+                                   key="scenario-art-"+scenario_id)
+                v.scenario_illustration(art, 120)
+                approved = st.checkbox("Approved and visible to AJ",
+                                       value=scenario.get("approved") is True,
+                                       key="scenario-approved-"+scenario_id)
+                if st.form_submit_button("Save story"):
+                    try:
+                        cleaned = content.validate_social_scenario(title, situation, example, choices, art)
+                        def update_scenario(s):
+                            item = next(item for item in s.setdefault("social_scenarios", [])
+                                        if item.get("id") == scenario_id)
+                            item.update(cleaned, approved=approved)
+                        db.change(update_scenario)
+                        notify("Story saved. " + ("AJ can use it now." if approved else "It remains a draft."))
+                    except (ValueError, StopIteration) as exc:
+                        message = str(exc) if isinstance(exc, ValueError) else "This story no longer exists. Refresh the page."
+                        st.warning(message)
+            if st.button("Remove this story", key="delete-social-scenario-"+scenario_id):
+                db.change(lambda s:s.__setitem__("social_scenarios", [
+                    item for item in s.get("social_scenarios", []) if item.get("id") != scenario_id
+                ]))
+                notify("Story removed.")
+
 
 def parent_portal():
     if not parent:
@@ -916,6 +1091,8 @@ def parent_portal():
                     db.change(lambda s:s.__setitem__("social_phrases",
                         [p for p in s.get("social_phrases",[]) if p["id"]!=phrase["id"]]))
                     notify("Saved phrase deleted.")
+        st.divider()
+        parent_social_scenarios(state)
     elif tab=="Financial reports":
         kind=st.radio("Account",["custody","college"],format_func=lambda x:"Custodial account" if x=="custody" else "529 college plan",horizontal=True)
         finance_parent(kind)
