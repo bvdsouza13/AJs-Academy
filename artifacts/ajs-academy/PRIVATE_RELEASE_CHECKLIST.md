@@ -46,9 +46,9 @@ or family data were accessed.
    upload does not prove playback across other iPad models/codecs. The user
    reports their iPad upload/playback check passed. Practice recording means
    recording in the iPad Camera app and then uploading, not an in-app recorder.
-3. Session expiry is checked on the next Streamlit interaction/rerun; it does
-   not automatically blank the screen at 30 minutes. The user reports their
-   requested idle check passed. No automatic lock behavior is claimed.
+3. An active Academy page checks for idle expiry every five seconds and returns
+   to the authorization screen when the 30-minute timeout is reached. The
+   timeout is also checked at the start of each full app run.
 4. Automated signed-out screenshot captured only the Streamlit shell; it is not
    authenticated visual evidence. The user reports checking both iPad
    orientations directly.
@@ -70,7 +70,8 @@ or family data were accessed.
 5. Address role/session authorization for copied media and download URLs
    (including Range requests) before claiming that app-level access controls
    protect private media.
-6. Consider an automatic parent-screen lock for unattended devices.
+6. Verify automatic idle locking on the deployed iPad after app or Streamlit
+   runtime upgrades.
 
 ## Required real-device evidence
 

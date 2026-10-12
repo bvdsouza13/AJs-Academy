@@ -21,6 +21,9 @@ from schools import baseline
 st.set_page_config(page_title="AJ’s Academy", page_icon=None, layout="wide", initial_sidebar_state="collapsed")
 v.apply_theme()
 
+SESSION_IDLE_TIMEOUT_SECONDS = secure_media.SESSION_TTL_SECONDS
+SESSION_IDLE_CHECK_INTERVAL_SECONDS = 5
+
 PAGES = [
     ("Home", "home", "A little progress, every day"),
     ("My Investments", "investments", "Save for my future"),
@@ -66,6 +69,25 @@ def safe_error(message, exc):
     # Never print provider errors, connection strings or private content into the browser.
     st.error(message)
 
+def _expire_idle_session(now=None):
+    """Clear an idle session and revoke its media access once its timeout is reached."""
+    if not st.session_state.get("role"):
+        return False
+    current_time = db.now().timestamp() if now is None else now
+    last_active = st.session_state.get("last_active", 0)
+    if current_time - last_active < SESSION_IDLE_TIMEOUT_SECONDS:
+        return False
+    secure_media.revoke_session(st.session_state.get("media_session_nonce"))
+    st.session_state.clear()
+    return True
+
+@st.fragment(run_every=SESSION_IDLE_CHECK_INTERVAL_SECONDS, key="session-idle-guard")
+def _idle_session_guard():
+    # This fragment keeps checking while the page is idle without treating its
+    # timer reruns as user activity. A full app rerun replaces private content.
+    if _expire_idle_session():
+        st.rerun()
+
 def login(parent=False):
     if not parent:
         v.welcome_art()
@@ -100,9 +122,7 @@ def login(parent=False):
         st.error(reason)
     st.caption("Private family access. A parent authorizes each new child session. Sessions expire after 30 minutes without interaction.")
 
-if st.session_state.get("role") and db.now().timestamp() - st.session_state.get("last_active",0) > 1800:
-    secure_media.revoke_session(st.session_state.get("media_session_nonce"))
-    st.session_state.clear()
+_expire_idle_session()
 if not st.session_state.get("role"):
     secure_media.sync_browser_session(None)
     login()
@@ -117,6 +137,7 @@ secure_media.grant_session(
     st.session_state.last_active + secure_media.SESSION_TTL_SECONDS,
 )
 secure_media.sync_browser_session(st.session_state.media_session_nonce)
+_idle_session_guard()
 state = db.load()
 settings = state["settings"]
 page = st.session_state.get("page","Home")

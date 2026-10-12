@@ -36,10 +36,22 @@ class SessionSafetyTests(unittest.TestCase):
         store.load.assert_not_called()
         self.assertTrue(any(t.label == "Your password" for t in self.app.text_input))
 
-    def test_expired_parent_session_requires_login_before_loading_data(self):
-        self.signed_in(age=1801)
+    def test_parent_session_is_active_just_before_idle_timeout(self):
+        self.signed_in(age=1799)
+        self.assertEqual(self.app.session_state["role"], "parent")
+        store.load.assert_called_once()
+
+    def test_parent_session_expires_at_idle_timeout_before_loading_data(self):
+        nonce = secure_media.new_session_nonce()
+        secure_media.grant_session(nonce, "parent", time.time() + 60)
+        self.app.session_state["media_session_nonce"] = nonce
+        self.app.session_state["draft"] = "synthetic parent-only draft"
+        self.signed_in(age=1800)
         store.load.assert_not_called()
         self.assertNotIn("role", self.app.session_state)
+        self.assertNotIn("draft", self.app.session_state)
+        self.assertNotIn(nonce, secure_media._sessions)
+        self.assertTrue(any(t.label == "Your password" for t in self.app.text_input))
 
     def test_handoff_clears_parent_drafts_and_requires_reauthentication(self):
         self.app.session_state["draft"] = "synthetic parent-only draft"
