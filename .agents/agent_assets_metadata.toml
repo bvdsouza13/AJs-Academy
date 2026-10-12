@@ -56,3 +56,17 @@ mtime_ms = 1791779970171
 storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:df335d2f-e866-4d08-a193-716ec77b3a17/7ed7d592-c2c9-4ca3-b964-e396861bc9f3/3821a5c9-6949-414f-8ec9-5f99fc207cb8"
 storage_version_token = "1791779985991686"
 content_type = "text/html"
+
+[[outputs]]
+id = "2D9_yZ3fMZFSIeZKvPjkx"
+uri = "file://generated-artifacts/ajs-academy-usability-review.docx"
+type = "word_document"
+title = "AJ’s Academy — Usability Review & Improvement Backlog"
+description = "Word report covering all nine features and parent controls: 11 confirmed defects, 10 qualified risks, 22 prioritized backlog items, synthetic browser evidence, and testing limitations."
+logical_id = "771eca70-5ae4-431b-8a91-06fc5e710da0"
+content_hash = "sha256:65b826c0263f67542b61d663e48c0687d31dfa7d93fed32c09fe4db5d8d83a61"
+size = 23537
+mtime_ms = 1791781872499
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:df335d2f-e866-4d08-a193-716ec77b3a17/771eca70-5ae4-431b-8a91-06fc5e710da0/ff1090c4-ba8f-4b04-aefc-1006d3d4f7d3"
+storage_version_token = "1791781908029293"
+content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
