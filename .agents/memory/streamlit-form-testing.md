@@ -7,3 +7,9 @@ In Streamlit AppTest, form field edits are buffered. Do not call `.run()` betwee
 **Why:** AppTest models the form's submit boundary; an intermediate script rerun does not commit the staged values.
 
 **How to apply:** For AppTest coverage of parent forms, stage widget values and submit the form in the same test interaction batch, then inspect saved state after the resulting rerun.
+
+For page-level `MagicMock` tests with multiple buttons, use a sequential `side_effect` instead of making every button return `True`; otherwise later actions such as removal can also fire after a save.
+
+**Why:** A mocked Streamlit page evaluates subsequent controls in the same run, so a blanket truthy button mock can trigger unrelated destructive actions and obscure whether the intended save worked.
+
+**How to apply:** When testing save flows that continue rendering after save, set button responses in render order and let persistence mocks apply the callback to a test state.

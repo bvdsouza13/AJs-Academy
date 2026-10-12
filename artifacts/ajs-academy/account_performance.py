@@ -49,6 +49,11 @@ Do not omit them to get a passing result. Include intermediate dated statements
 to see historical growth; 529 conversions use exchange, not deposits or gains.
 This checks consistency of parent-supplied evidence; it is not broker verification
 or tax advice. Review the normalized ledger against the original statements.
+
+For monthly updates, choose Append new period in the parent import and upload
+only activity after the last saved closing date, plus a later dated balance and
+every security position on each new balance date. Saved opening lots stay with
+the earlier history. Activity alone never supplies a dated position.
 """
 
 

@@ -5,7 +5,7 @@ import finance as fin
 import store as db
 import secure_media
 from statement_import_views import prepare_import
-from statement_import import review_statement
+from statement_import import stage_statement
 
 
 def saved_performance(state, kind):
@@ -47,22 +47,42 @@ def parent_statements(state, kind):
             nonce=st.session_state.get("media_session_nonce"),
             role=st.session_state.get("role"),
         )
-    rows, ready, revision = prepare_import(kind)
+    statement_key = kind + "_statements"
+    expected_evidence = state["finance"].get(statement_key)
+    rows, ready, revision, strategy, uploaded_rows = prepare_import(kind, expected_evidence)
     confirmed = st.checkbox(
-        "I checked this complete ledger against the original statements, including all "
-        "opening lots, external transfers, exchanges, splits, cancellations and closing positions.",
+        "I checked this complete ledger against the original statements, including "
+        "opening lots, dated positions, external transfers, exchanges, splits and cancellations.",
         key=f"attest-{kind}-{revision}", disabled=not ready)
-    st.caption("Saving replaces only this account’s statement evidence, not its original transaction export. "
-               "Blocked imports leave existing saved evidence unchanged.")
-    if st.button("Save statement evidence", key="save-statements-" + kind, disabled=not (ready and confirmed)):
+    action_label = "Append statement period" if strategy == "append" else "Replace statement history"
+    st.caption("This changes only this account’s parent-reviewed statement evidence, not its original "
+               "transaction export. Blocked imports leave saved evidence unchanged.")
+    if st.button(action_label, key="save-statements-" + kind, disabled=not (ready and confirmed)):
         if not rows or not ready or not confirmed:
             st.error("Resolve all import issues and confirm the statement review first.")
         else:
             try:
-                if not review_statement(rows)["ok"]:
-                    raise ValueError("Statement review failed; resolve the preview issues before saving.")
-                db.change(lambda s: s["finance"].__setitem__(
-                    kind + "_statements", {"rows": rows, "confirmed": True, "saved": db.today()}))
+                def save(s):
+                    current = s["finance"].get(statement_key)
+                    if current != expected_evidence:
+                        raise ValueError(
+                            "Saved statement evidence changed while this preview was open. "
+                            "Reload and review the current history before saving."
+                        )
+                    staged = stage_statement(
+                        (current or {}).get("rows", []),
+                        uploaded_rows,
+                        strategy,
+                        existing_confirmed=bool((current or {}).get("confirmed")),
+                    )
+                    candidate = staged["rows"]
+                    if candidate != rows or not staged["ok"]:
+                        raise ValueError("Statement review failed; resolve the preview issues before saving.")
+                    s["finance"][statement_key] = {
+                        "rows": candidate, "confirmed": True, "saved": db.today()
+                    }
+
+                db.change(save)
                 st.session_state.notice = "Statement evidence saved."
                 st.rerun()
             except ValueError as exc:

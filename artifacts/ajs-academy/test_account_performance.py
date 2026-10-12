@@ -3,19 +3,19 @@ import io
 import unittest
 from unittest.mock import patch, MagicMock
 from account_performance import FIELDS, parse_statement_csv, export_statement_csv, reconcile, money_weighted
-from statement_import import PRESETS, normalize_broker, review_statement, read_broker_csv
+from statement_import import PRESETS, normalize_broker, review_statement, read_broker_csv, stage_statement
 
 
 def row(kind, day, **kw):
     return dict(type=kind, date=day, **kw)
 
 
-def parse(records):
+def parse(records, prefix="r"):
     out = io.StringIO()
     writer = csv.DictWriter(out, fieldnames=FIELDS)
     writer.writeheader()
     for i, record in enumerate(records):
-        writer.writerow(dict(id=f"r{i}", **record))
+        writer.writerow(dict(id=f"{prefix}{i}", **record))
     return parse_statement_csv(out.getvalue().encode())
 
 
@@ -230,6 +230,54 @@ class BrokerImportTests(unittest.TestCase):
         self.assertTrue(review_statement(activity["rows"] + supporting)["ok"])
         self.assertFalse(review_statement(activity["rows"] + supporting[:-1])["ok"])
 
+    def test_append_new_period_uses_saved_history_without_reuploading_it(self):
+        saved = parse(fixture())
+        new_period = parse([
+            row("deposit", "2025-02-01", amount=100),
+            row("balance", "2025-03-01", amount=2615, basis=2215),
+            row("position", "2025-03-01", symbol="AAA", quantity=6, amount=400),
+        ], prefix="new")
+        staged = stage_statement(saved, new_period, "append")
+        self.assertTrue(staged["ok"], staged["issues"])
+        self.assertEqual(staged["summary"]["retained"], len(saved))
+        self.assertEqual(staged["summary"]["incoming"], len(new_period))
+        self.assertEqual(staged["summary"]["prior_end"], "2025-01-01")
+        self.assertEqual(staged["rows"][:len(saved)], saved)
+        report = reconcile(staged["rows"])
+        self.assertTrue(report["ok"], report)
+        self.assertEqual(report["end"], "2025-03-01")
+        self.assertEqual(len(report["history"]), 3)
+
+    def test_append_blocks_cross_period_duplicates_and_old_dates(self):
+        saved = parse(fixture())
+        duplicate = [dict(saved[4])]
+        staged = stage_statement(saved, duplicate, "append", incoming_sources=["February activity"])
+        self.assertFalse(staged["ok"])
+        self.assertIn("strictly later", " ".join(staged["issues"]))
+        self.assertIn("possible duplicate", " ".join(staged["issues"]))
+
+    def test_append_requires_explicit_new_positions_not_activity_inference(self):
+        saved = parse(fixture())
+        new_period = parse([
+            row("deposit", "2025-02-01", amount=100),
+            row("balance", "2025-03-01", amount=2615, basis=2615),
+        ], prefix="new")
+        staged = stage_statement(saved, new_period, "append")
+        self.assertFalse(staged["ok"])
+        self.assertIn("units for AAA", " ".join(staged["issues"]))
+
+    def test_append_requires_confirmed_saved_history_and_replace_is_explicit(self):
+        saved = parse(fixture())
+        new_period = parse([
+            row("balance", "2025-03-01", amount=1, basis=1),
+            row("balance", "2025-04-01", amount=1, basis=1),
+        ], prefix="new")
+        blocked = stage_statement(saved, new_period, "append", existing_confirmed=False)
+        self.assertFalse(blocked["ok"])
+        replacement = stage_statement(saved, new_period, "replace")
+        self.assertEqual(replacement["summary"]["retained"], 0)
+        self.assertEqual(replacement["rows"], new_period)
+
     def test_bad_headers_mapping_and_size(self):
         for raw in (b"Date,Date\n1,2\n", b"\xff", b"x" * 2_000_001):
             with self.assertRaises(ValueError):
@@ -247,7 +295,8 @@ class BrokerImportTests(unittest.TestCase):
             ui.button.return_value = True
             with patch.object(finance_views, "st", ui), patch.object(
                     finance_views.secure_media, "download_link"), patch.object(
-                    finance_views, "prepare_import", return_value=(parse(fixture()), ready, "rev")), patch.object(
+                    finance_views, "prepare_import",
+                    return_value=(parse(fixture()), ready, "rev", "replace", parse(fixture()))), patch.object(
                     finance_views.db, "change") as change:
                 finance_views.parent_statements(state, "custody")
                 change.assert_not_called()
@@ -256,17 +305,80 @@ class BrokerImportTests(unittest.TestCase):
         ui.session_state.get.side_effect = lambda key, default=None: (
             "parent" if key == "role" else "parent-test-session" if key == "media_session_nonce" else default
         )
+        ui.columns.return_value = [MagicMock(), MagicMock(), MagicMock()]
         ui.checkbox.return_value = True
-        ui.button.return_value = True
+        ui.button.side_effect = [True, False]
         with patch.object(finance_views, "st", ui), patch.object(
                 finance_views.secure_media, "download_link"), patch.object(
-                finance_views, "prepare_import", return_value=(parse(fixture()), True, "rev")), patch.object(
+                finance_views, "prepare_import",
+                return_value=(parse(fixture()), True, "rev", "replace", parse(fixture()))), patch.object(
                 finance_views.db, "change") as change:
             finance_views.parent_statements(state, "custody")
             change.assert_called_once()
             self.assertFalse(ui.button.call_args.kwargs["disabled"])
             change.call_args.args[0](state)
             self.assertTrue(state["finance"]["custody_statements"]["confirmed"])
+
+    def test_append_save_combines_only_after_confirmed_preview_matches_saved_copy(self):
+        import finance_views
+        saved = parse(fixture())
+        uploaded = parse([
+            row("deposit", "2025-02-01", amount=100),
+            row("balance", "2025-03-01", amount=2615, basis=2215),
+            row("position", "2025-03-01", symbol="AAA", quantity=6, amount=400),
+        ], prefix="new")
+        staged = stage_statement(saved, uploaded, "append")
+        state = {"finance": {"custody_statements": {
+            "rows": saved, "confirmed": True, "saved": "2025-01-01"
+        }}}
+        ui = MagicMock()
+        ui.session_state = MagicMock()
+        ui.session_state.get.side_effect = lambda key, default=None: (
+            "parent" if key == "role" else "parent-test-session" if key == "media_session_nonce" else default
+        )
+        ui.columns.return_value = [MagicMock(), MagicMock(), MagicMock()]
+        ui.checkbox.return_value = True
+        ui.button.side_effect = [True, False]
+        with patch.object(finance_views, "st", ui), patch.object(
+                finance_views.secure_media, "download_link"), patch.object(
+                finance_views, "prepare_import",
+                return_value=(staged["rows"], True, "rev", "append", uploaded)), patch.object(
+                finance_views.db, "change", side_effect=lambda update: update(state)):
+            finance_views.parent_statements(state, "custody")
+        result = state["finance"]["custody_statements"]
+        self.assertEqual(result["rows"], saved + uploaded)
+        self.assertTrue(review_statement(result["rows"])["ok"])
+
+    def test_stale_preview_does_not_replace_updated_evidence(self):
+        import finance_views
+        saved = parse(fixture())
+        uploaded = parse([
+            row("deposit", "2025-02-01", amount=100),
+            row("balance", "2025-03-01", amount=2615, basis=2215),
+            row("position", "2025-03-01", symbol="AAA", quantity=6, amount=400),
+        ], prefix="new")
+        state = {"finance": {"custody_statements": {
+            "rows": saved, "confirmed": True, "saved": "2025-01-01"
+        }}}
+        expected = dict(state["finance"]["custody_statements"])
+        state["finance"]["custody_statements"] = dict(expected, saved="2025-01-02")
+        ui = MagicMock()
+        ui.session_state = MagicMock()
+        ui.session_state.get.side_effect = lambda key, default=None: (
+            "parent" if key == "role" else "parent-test-session" if key == "media_session_nonce" else default
+        )
+        ui.columns.return_value = [MagicMock(), MagicMock(), MagicMock()]
+        ui.checkbox.return_value = True
+        ui.button.side_effect = [True, False]
+        original = {"finance": {"custody_statements": expected}}
+        with patch.object(finance_views, "st", ui), patch.object(
+                finance_views.secure_media, "download_link"), patch.object(
+                finance_views, "prepare_import",
+                return_value=(saved + uploaded, True, "rev", "append", uploaded)), patch.object(
+                finance_views.db, "change", side_effect=lambda update: update(state)):
+            finance_views.parent_statements(original, "custody")
+        self.assertEqual(state["finance"]["custody_statements"], dict(expected, saved="2025-01-02"))
+        self.assertIn("changed while this preview was open", str(ui.error.call_args))
 
 
 if __name__ == "__main__":

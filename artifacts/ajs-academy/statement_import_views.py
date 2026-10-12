@@ -5,17 +5,35 @@ import streamlit as st
 import pandas as pd
 
 from account_performance import FIELDS, parse_statement_csv
-from statement_import import PRESETS, read_broker_csv, normalize_broker, review_statement, parse_evidence_table
+from statement_import import (
+    PRESETS, read_broker_csv, normalize_broker, stage_statement, parse_evidence_table,
+)
 
 
-def prepare_import(kind):
+def prepare_import(kind, existing_evidence=None):
+    existing_rows = (existing_evidence or {}).get("rows", [])
+    if existing_rows:
+        strategy_label = st.selectbox(
+            "How should this upload be saved?",
+            ["Append new period", "Replace saved history"],
+            key="statement-save-mode-" + kind,
+        )
+        strategy = "append" if strategy_label == "Append new period" else "replace"
+    else:
+        strategy = "replace"
+
     mode = st.selectbox("Statement import format", ["Generic reviewed CSV", *PRESETS], key="format-" + kind)
-    upload = st.file_uploader("Upload statement evidence and reconciled ledger" if mode == "Generic reviewed CSV"
-                              else "Upload broker activity CSV", type=["csv"], key="statements-" + kind)
+    if mode == "Generic reviewed CSV":
+        upload_label = ("Upload new-period statement evidence and activity"
+                        if strategy == "append"
+                        else "Upload statement evidence and reconciled ledger")
+    else:
+        upload_label = "Upload broker activity CSV"
+    upload = st.file_uploader(upload_label, type=["csv"], key="statements-" + kind)
     if upload is None:
-        return None, False, "empty"
+        return None, False, "empty", strategy, []
     raw = upload.getvalue()
-    token = hashlib.sha256(raw + mode.encode()).hexdigest()[:16]
+    token = hashlib.sha256(raw + mode.encode() + strategy.encode()).hexdigest()[:16]
     rows, sources, issues = [], [], []
     try:
         if mode == "Generic reviewed CSV":
@@ -66,18 +84,42 @@ def prepare_import(kind):
                 extra_sources = [f"Supporting table row {i}" for i in range(1, len(extra) + 1)]
             rows = rows + extra
             sources = sources + extra_sources
-            st.subheader("Complete normalized evidence preview")
-            st.dataframe(pd.DataFrame([{"Source": src, **r} for src, r in zip(sources, rows)]), hide_index=True)
-        review = review_statement(rows, sources)
-        issues.extend(review["issues"])
+
+        staged = stage_statement(
+            existing_rows,
+            rows,
+            strategy,
+            incoming_sources=sources,
+            existing_confirmed=bool((existing_evidence or {}).get("confirmed")),
+        )
+        issues.extend(staged["issues"])
+        summary = staged["summary"]
+        st.subheader("Append / replace preview")
+        if strategy == "append":
+            st.write(
+                f"Append {summary['incoming']} uploaded records after {summary['prior_end']}; "
+                f"retain {summary['retained']} saved records. "
+                f"{summary['total']} records will be saved."
+            )
+        else:
+            st.write(
+                f"Replace saved statement history with {summary['incoming']} uploaded records. "
+                f"{summary['total']} records will be saved."
+            )
+        if rows:
+            action = "Append" if strategy == "append" else "Replace"
+            st.dataframe(pd.DataFrame([
+                {"Save action": action, "Source": src, **r} for src, r in zip(sources, rows)
+            ]), hide_index=True)
         for issue in issues:
             st.error(issue)
         if not issues:
-            st.success("All supplied statement checkpoints reconcile. Review the preview before confirming.")
+            st.success("All supplied statement checkpoints reconcile with the selected saved-history action.")
         # Any data or mapping change requires fresh confirmation.
         token = hashlib.sha256(json.dumps(
-            [token, rows, issues, locals().get("mapping")], sort_keys=True).encode()).hexdigest()[:16]
-        return rows, not issues, token
+            [token, staged["rows"], issues, locals().get("mapping"), existing_rows],
+            sort_keys=True).encode()).hexdigest()[:16]
+        return staged["rows"], not issues and staged["ok"], token, strategy, rows
     except (ValueError, UnicodeError) as exc:
         st.error(f"{exc} Existing saved evidence has not changed.")
-        return None, False, token
+        return None, False, token, strategy, []

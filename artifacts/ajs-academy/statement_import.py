@@ -137,6 +137,69 @@ def review_statement(rows, sources=None):
     return {"ok": not issues and report["ok"], "issues": issues}
 
 
+def stage_statement(existing_rows, incoming_rows, mode="replace", incoming_sources=None,
+                    existing_confirmed=True):
+    """Validate a replacement or a later period against saved statement evidence."""
+    incoming_rows = list(incoming_rows)
+    incoming_sources = incoming_sources or [
+        f"Uploaded statement row {i}" for i in range(1, len(incoming_rows) + 1)
+    ]
+    if len(incoming_sources) != len(incoming_rows):
+        raise ValueError("Each uploaded statement row needs a matching source label.")
+
+    if mode == "replace":
+        rows, sources = incoming_rows, incoming_sources
+        summary = {"mode": mode, "retained": 0, "incoming": len(incoming_rows),
+                   "total": len(incoming_rows), "prior_end": None}
+    elif mode == "append":
+        if not existing_rows or not existing_confirmed:
+            return {"rows": incoming_rows, "sources": incoming_sources, "issues": [
+                "Append requires previously saved, parent-confirmed statement evidence."
+            ], "ok": False,
+                "summary": {"mode": mode, "retained": len(existing_rows),
+                            "incoming": len(incoming_rows), "total": len(existing_rows) + len(incoming_rows),
+                            "prior_end": None}}
+
+        prior_report = review_statement(existing_rows)
+        prior_balances = [r["date"] for r in existing_rows if r["type"] == "balance"]
+        prior_end = max(prior_balances) if prior_balances else None
+        existing_sources = [f"Previously saved ({r['id']})" for r in existing_rows]
+        new_period_issues = []
+        if not prior_report["ok"]:
+            new_period_issues.append(
+                "Previously saved statement evidence no longer passes reconciliation; "
+                "append is blocked until it is reviewed."
+            )
+        if prior_end is None:
+            new_period_issues.append("Previously saved evidence has no dated closing balance.")
+        else:
+            if not any(r["type"] == "balance" and r["date"] > prior_end for r in incoming_rows):
+                new_period_issues.append(
+                    f"Add at least one new dated balance after the saved closing date {prior_end}."
+                )
+            earlier = [source for r, source in zip(incoming_rows, incoming_sources)
+                       if r["date"] <= prior_end]
+            if earlier:
+                new_period_issues.append(
+                    f"Append rows must be strictly later than the saved closing date {prior_end}; "
+                    f"review {', '.join(earlier)}."
+                )
+        rows = list(existing_rows) + incoming_rows
+        sources = existing_sources + incoming_sources
+        summary = {"mode": mode, "retained": len(existing_rows), "incoming": len(incoming_rows),
+                   "total": len(rows), "prior_end": prior_end}
+        review = review_statement(rows, sources)
+        issues = new_period_issues + review["issues"]
+        return {"rows": rows, "sources": sources, "issues": issues,
+                "ok": not issues and review["ok"], "summary": summary}
+    else:
+        raise ValueError("Choose whether to append the new period or replace saved history.")
+
+    review = review_statement(rows, sources)
+    return {"rows": rows, "sources": sources, "issues": review["issues"],
+            "ok": review["ok"], "summary": summary}
+
+
 def parse_evidence_table(records):
     """Parse editable supporting evidence without allowing incomplete rows."""
     out = io.StringIO()
