@@ -189,15 +189,15 @@ def _reconcile(rows):
         kind, day, symbol = r["type"], r["date"], r["symbol"]
         if kind == "position":
             if day not in days or symbol in positions[day]:
-                raise ValueError("Positions need a balance on the same date and one row per symbol.")
+                raise ValueError(f"Record {r['id']}: positions need a balance on the same date and one row per symbol.")
             positions[day][symbol] = r
         elif kind == "lot":
             if day != start:
-                raise ValueError("Opening lots must use the opening balance date.")
+                raise ValueError(f"Record {r['id']}: opening lots must use the opening balance date.")
             lots[symbol].append([r["quantity"], r["basis"], r["acquired"]])
         elif kind != "balance":
             if not start < day <= end:
-                raise ValueError("Activity must fall after opening and on/before closing.")
+                raise ValueError(f"Record {r['id']}: activity must fall after opening and on/before closing.")
             activity.append(r)
     activity.sort(key=lambda r: r["date"])  # stable, preserving same-day row order
     by_id = {r["id"]: r for r in activity}
@@ -207,10 +207,10 @@ def _reconcile(rows):
             original = by_id.get(r["ref"])
             if (not original or original["type"] not in {"buy", "sell"}
                     or original["date"] > r["date"] or r["ref"] in cancelled):
-                raise ValueError("Cancellation must reference one earlier, unreversed buy or sell.")
+                raise ValueError(f"Record {r['id']}: cancellation must reference one earlier, unreversed buy or sell.")
             # Don't retroactively alter a statement that predates reversal.
             if any(original["date"] <= d < r["date"] for d in days):
-                raise ValueError("Cancellation crosses a statement date; provide corrected statement evidence.")
+                raise ValueError(f"Record {r['id']}: cancellation crosses a statement date; provide corrected statement evidence.")
             cancelled.add(r["ref"])
     cash = balances[0]["basis"]
     realized = defaultdict(float)
@@ -233,7 +233,7 @@ def _reconcile(rows):
             lot[1] -= basis
             remaining -= q
         if remaining > 1e-6:
-            raise ValueError(f"Insufficient reconciled lots for {symbol}; check opening lots and transfers.")
+            raise ValueError(f"Record {r['id']}: insufficient reconciled lots for {symbol}; check opening lots and transfers.")
         return removed
 
     def checkpoint(b):
@@ -243,11 +243,11 @@ def _reconcile(rows):
             actual = sum(l[0] for l in lots[symbol])
             expected = supplied.get(symbol, {}).get("quantity", 0)
             if abs(actual - expected) > 1e-6:
-                raise ValueError(f"{day}: units for {symbol} do not reconcile with the statement.")
+                raise ValueError(f"Record {supplied.get(symbol, b)['id']} ({day}): units for {symbol} do not reconcile with the statement.")
         if abs(cash - b["basis"]) > .02:
-            raise ValueError(f"{day}: cash does not reconcile; check deposits, fees and trade cash.")
+            raise ValueError(f"Record {b['id']} ({day}): cash does not reconcile; check deposits, fees and trade cash.")
         if abs(b["basis"] + sum(p["amount"] for p in supplied.values()) - b["amount"]) > .02:
-            raise ValueError(f"{day}: position values plus cash do not equal the dated balance.")
+            raise ValueError(f"Record {b['id']} ({day}): position values plus cash do not equal the dated balance.")
         net = deposits - withdrawals + transfers_in - transfers_out
         history.append({"Date": day, "Balance": b["amount"],
                         "Net external funding": net,
@@ -281,12 +281,12 @@ def _reconcile(rows):
                     flows.append((r["date"], amount))
                 else:
                     if symbol == r["other_symbol"]:
-                        raise ValueError("Exchange symbols must differ; use split for a same-symbol ratio.")
+                        raise ValueError(f"Record {r['id']}: exchange symbols must differ; use split for a same-symbol ratio.")
                     for units, cost, acquired in removed:
                         lots[r["other_symbol"]].append([units / q * r["other_quantity"], cost, acquired])
             elif kind == "split":
                 if sum(l[0] for l in lots[symbol]) <= 1e-8:
-                    raise ValueError("Split has no matching position.")
+                    raise ValueError(f"Record {r['id']}: split has no matching position.")
                 for lot in lots[symbol]:
                     lot[0] *= q / r["other_quantity"]
             elif kind in {"deposit", "income"}:
@@ -302,7 +302,7 @@ def _reconcile(rows):
             else:
                 raise ValueError("Unsupported activity; results withheld.")
             if cash < -.02:
-                raise ValueError("Negative cash: check same-day activity order or missing funding.")
+                raise ValueError(f"Record {r['id']}: negative cash: check same-day activity order or missing funding.")
         checkpoint(b)
     closing = balances[-1]["amount"]
     allocations = []

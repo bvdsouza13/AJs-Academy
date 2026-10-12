@@ -3,6 +3,7 @@ import io
 import unittest
 from unittest.mock import patch, MagicMock
 from account_performance import FIELDS, parse_statement_csv, export_statement_csv, reconcile, money_weighted
+from statement_import import PRESETS, normalize_broker, review_statement, read_broker_csv
 
 
 def row(kind, day, **kw):
@@ -159,6 +160,109 @@ class PerformanceTests(unittest.TestCase):
         ui.download_button.assert_not_called()
         ui.file_uploader.assert_not_called()
         self.assertNotIn("$", str(ui.mock_calls))
+
+
+class BrokerImportTests(unittest.TestCase):
+    def broker(self, records, broker="Charles Schwab", mapping=None):
+        out = io.StringIO()
+        mapping = mapping or PRESETS[broker]
+        writer = csv.DictWriter(out, fieldnames=list(mapping.values()))
+        writer.writeheader()
+        for record in records:
+            writer.writerow({mapping[k]: v for k, v in record.items()})
+        return normalize_broker(out.getvalue().encode(), broker, mapping)
+
+    def test_presets_and_overridden_columns_normalize_without_holdings(self):
+        for broker, action in [("Charles Schwab", "Buy"), ("Fidelity", "YOU BOUGHT TEST FUND (AAA)")]:
+            result = self.broker([dict(type=action, date="02/01/2024", symbol="aaa",
+                                       quantity="10", amount="($1,000.00)")], broker)
+            self.assertEqual(result["issues"], [])
+            self.assertEqual(result["rows"][0]["type"], "buy")
+            self.assertEqual(result["rows"][0]["amount"], 1000)
+            self.assertEqual(result["rows"][0]["date"], "2024-02-01")
+            self.assertEqual(result["rows"][0]["symbol"], "AAA")
+            self.assertFalse(review_statement(result["rows"])["ok"])
+        mapping = {k: k.upper() for k in PRESETS["Charles Schwab"]}
+        result = self.broker([dict(type="Sell", date="2024-03-01", symbol="AAA",
+                                   quantity="-2", amount="$25")], mapping=mapping)
+        self.assertEqual(result["rows"][0]["quantity"], 2)
+
+    def test_unsupported_and_malformed_rows_remain_in_preview(self):
+        result = self.broker([
+            dict(type="Stock Merger", date="02/01/2024", symbol="AAA", quantity="1", amount="0"),
+            dict(type="Buy", date="not a date", symbol="AAA", quantity="1", amount="1"),
+            dict(type="Sell", date="02/01/2024", symbol="AAA", quantity="1", amount="-1"),
+            dict(type="Cash Dividend", date="02/01/2024", symbol="AAA", quantity="2", amount="5"),
+            dict(type="Buy", date="02/01/2024", symbol="AAA", quantity="1", amount="nan"),
+        ])
+        self.assertEqual(len(result["preview"]), 5)
+        self.assertEqual(len(result["issues"]), 5)
+        self.assertEqual(result["rows"], [])
+        for line, issue in enumerate(result["issues"], 2):
+            self.assertIn(f"line {line}", issue)
+
+    def test_duplicates_even_with_different_ids_block(self):
+        records = parse(fixture())
+        records.append(dict(records[4], id="another-id"))
+        review = review_statement(records)
+        self.assertFalse(review["ok"])
+        self.assertIn("possible duplicate", " ".join(review["issues"]))
+        self.assertIn("line 6", " ".join(review["issues"]))
+        records[-1]["id"] = records[4]["id"]
+        self.assertIn("duplicate ID", " ".join(review_statement(records)["issues"]))
+
+    def test_opening_lot_issue_names_source_row_and_symbol(self):
+        records = fixture()
+        records.pop(2)
+        result = review_statement(parse(records))
+        self.assertFalse(result["ok"])
+        self.assertIn("Statement CSV line 3", result["issues"][0])
+        self.assertIn("opening tax lots for AAA", result["issues"][0])
+
+    def test_broker_and_statement_evidence_reconcile(self):
+        activity = self.broker([dict(type="Buy", date="02/01/2024", symbol="AAA",
+                                     quantity="10", amount="-100")])
+        supporting = parse([
+            row("balance", "2024-01-01", amount=200, basis=200),
+            row("balance", "2025-01-01", amount=220, basis=100),
+            row("position", "2025-01-01", symbol="AAA", quantity=10, amount=120),
+        ])
+        self.assertTrue(review_statement(activity["rows"] + supporting)["ok"])
+        self.assertFalse(review_statement(activity["rows"] + supporting[:-1])["ok"])
+
+    def test_bad_headers_mapping_and_size(self):
+        for raw in (b"Date,Date\n1,2\n", b"\xff", b"x" * 2_000_001):
+            with self.assertRaises(ValueError):
+                read_broker_csv(raw)
+        with self.assertRaises(ValueError):
+            normalize_broker(b"Date,Action\n01/01/2024,Buy\n", "Charles Schwab", PRESETS["Charles Schwab"])
+
+    def test_save_requires_ready_and_confirmation_and_keeps_previous_on_failure(self):
+        import finance_views
+        state = {"finance": {}}
+        for ready, confirmed in ((False, True), (True, False)):
+            ui = MagicMock()
+            ui.session_state = {"role": "parent"}
+            ui.checkbox.return_value = confirmed
+            ui.button.return_value = True
+            with patch.object(finance_views, "st", ui), patch.object(
+                    finance_views, "prepare_import", return_value=(parse(fixture()), ready, "rev")), patch.object(
+                    finance_views.db, "change") as change:
+                finance_views.parent_statements(state, "custody")
+                change.assert_not_called()
+        ui = MagicMock()
+        ui.session_state = MagicMock()
+        ui.session_state.get.return_value = "parent"
+        ui.checkbox.return_value = True
+        ui.button.return_value = True
+        with patch.object(finance_views, "st", ui), patch.object(
+                finance_views, "prepare_import", return_value=(parse(fixture()), True, "rev")), patch.object(
+                finance_views.db, "change") as change:
+            finance_views.parent_statements(state, "custody")
+            change.assert_called_once()
+            self.assertFalse(ui.button.call_args.kwargs["disabled"])
+            change.call_args.args[0](state)
+            self.assertTrue(state["finance"]["custody_statements"]["confirmed"])
 
 
 if __name__ == "__main__":

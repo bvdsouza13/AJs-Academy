@@ -3,6 +3,8 @@ import streamlit as st
 import pandas as pd
 import finance as fin
 import store as db
+from statement_import_views import prepare_import
+from statement_import import review_statement
 
 
 def saved_performance(state, kind):
@@ -38,20 +40,20 @@ def parent_statements(state, kind):
         st.markdown(fin.GUIDE)
         st.download_button("Download blank statement template", fin.TEMPLATE,
                            "statement-template.csv", "text/csv", key="template-" + kind)
-    upload = st.file_uploader("Upload statement evidence and reconciled ledger",
-                              type=["csv"], key="statements-" + kind)
+    rows, ready, revision = prepare_import(kind)
     confirmed = st.checkbox(
         "I checked this complete ledger against the original statements, including all "
         "opening lots, external transfers, exchanges, splits, cancellations and closing positions.",
-        key="attest-" + kind)
+        key=f"attest-{kind}-{revision}", disabled=not ready)
     st.caption("Saving replaces only this account’s statement evidence, not its original transaction export. "
-               "A non-reconciling replacement hides all previous performance results.")
-    if st.button("Save statement evidence", key="save-statements-" + kind):
-        if not upload or not confirmed:
-            st.error("Choose a CSV and confirm the statement review first.")
+               "Blocked imports leave existing saved evidence unchanged.")
+    if st.button("Save statement evidence", key="save-statements-" + kind, disabled=not (ready and confirmed)):
+        if not rows or not ready or not confirmed:
+            st.error("Resolve all import issues and confirm the statement review first.")
         else:
             try:
-                rows = fin.parse_statement_csv(upload.getvalue())
+                if not review_statement(rows)["ok"]:
+                    raise ValueError("Statement review failed; resolve the preview issues before saving.")
                 db.change(lambda s: s["finance"].__setitem__(
                     kind + "_statements", {"rows": rows, "confirmed": True, "saved": db.today()}))
                 st.session_state.notice = "Statement evidence saved."
