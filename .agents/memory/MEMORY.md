@@ -3,3 +3,4 @@
 - [Python feed parsing](python-feedparser.md) — pass downloaded RSS bytes through BytesIO to avoid a fatal file-path probe.
 - [Statement evidence](statement-evidence.md) — activity exports are not holdings; distinguish reconciled parent statements from planning assumptions and broker verification.
 - [Streamlit private media](streamlit-private-media.md) — media and download URLs need authorization independently of script-level login and private storage.
+- [Git publication privacy](git-publication-privacy.md) — publish a clean code-only history to private GitHub; inherited checkpoint history includes family account uploads.
