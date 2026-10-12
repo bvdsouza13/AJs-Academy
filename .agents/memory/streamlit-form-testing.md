@@ -14,6 +14,12 @@ For page-level `MagicMock` tests with multiple buttons, use a sequential `side_e
 
 **How to apply:** When testing save flows that continue rendering after save, set button responses in render order and let persistence mocks apply the callback to a test state.
 
+AppTest Markdown element `repr` does not include its rendered text; assert against each Markdown element's `value` instead.
+
+**Why:** A test that searched the full app representation falsely reported visible text as missing.
+
+**How to apply:** For rendered-text assertions, join `app.markdown` widget values rather than inspecting `repr(app.main)`.
+
 `AppTest` renders tab contents into its widget tree but its `Tab` elements do not support selecting a tab. Interact with a widget by label or key without calling a tab-selection method.
 
 **Why:** AppTest's tab API differs from browser-driven interaction APIs; assuming tabs are selectable causes tests to fail before exercising the underlying flow.

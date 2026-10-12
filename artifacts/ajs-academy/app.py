@@ -461,6 +461,20 @@ def ai():
                 notify("Well done for trying a new idea!")
 
 def social():
+    show_request = st.session_state.get("social-show-request")
+    if show_request in ("kid", "adult"):
+        if show_request == "kid":
+            request_title, request_key = "Words for another kid", "social-kid-script"
+        else:
+            request_title, request_key = "Words for a grown-up", "social-adult-script"
+        with st.container(key="social-request-showcase"):
+            v.request_showcase(request_title, st.session_state.get(request_key, ""))
+            if st.button("Back to editing", key="social-request-back", type="primary",
+                         use_container_width=True):
+                st.session_state.pop("social-show-request", None)
+                st.rerun()
+        return
+
     v.hero("AJ’s Social Skills", "Find words, take a pause, and practice talking.")
     st.caption("You can skip any question. This is a helper, not a test.")
     help_tab, meaning_tab, practice_tab, stories_tab, phrases_tab = st.tabs(
@@ -547,7 +561,15 @@ def social():
             st.session_state["social-kid-script"] = scripts["kid"]
             st.session_state["social-adult-script"] = scripts["adult"]
         kid_script = st.text_area("Words for another kid", key="social-kid-script", max_chars=700, height=100)
+        if st.button("Show words for another kid", key="social-show-kid-request",
+                     use_container_width=True, disabled=not kid_script.strip()):
+            st.session_state["social-show-request"] = "kid"
+            st.rerun()
         adult_script = st.text_area("Words for a grown-up", key="social-adult-script", max_chars=700, height=120)
+        if st.button("Show words for a grown-up", key="social-show-adult-request",
+                     use_container_width=True, disabled=not adult_script.strip()):
+            st.session_state["social-show-request"] = "adult"
+            st.rerun()
         help_phrase = settings.get("social_help_phrase") or "Help me, AJ, help Connor."
         st.info(f"Your help phrase: “{help_phrase}”")
         st.info("If you feel unsafe or need help now, find a grown-up you trust.")

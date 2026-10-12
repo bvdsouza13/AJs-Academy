@@ -111,5 +111,50 @@ class SocialCustomizationTests(unittest.TestCase):
         self.assertFalse(self.app.exception)
 
 
+class SocialRequestShowcaseTests(unittest.TestCase):
+    def setUp(self):
+        self.state = copy.deepcopy(store.DEFAULT)
+        self.load_patch = patch("store.load", side_effect=lambda: copy.deepcopy(self.state))
+        self.change_patch = patch("store.change", side_effect=lambda callback: callback(self.state))
+        self.load_patch.start()
+        self.change_patch.start()
+        self.addCleanup(self.load_patch.stop)
+        self.addCleanup(self.change_patch.stop)
+        self.app = AppTest.from_file(str(Path(__file__).with_name("app.py")))
+        self.app.session_state["role"] = "child"
+        self.app.session_state["page"] = "AJ’s Social Skills"
+        self.app.session_state["last_active"] = store.now().timestamp()
+        self.app.run(timeout=30)
+        self.assertFalse(self.app.exception)
+
+    def _show_request(self, widget_key, expected_words, expected_title):
+        self.app.text_area(key=widget_key).set_value(expected_words).run(timeout=30)
+        next(button for button in self.app.button if button.key == (
+            "social-show-kid-request" if widget_key == "social-kid-script"
+            else "social-show-adult-request"
+        )).click().run(timeout=30)
+        self.assertFalse(self.app.exception)
+        rendered_markdown = "\n".join(widget.value for widget in self.app.markdown)
+        self.assertIn(expected_title, rendered_markdown)
+        self.assertIn(expected_words, rendered_markdown)
+        self.assertNotIn(widget_key, [widget.key for widget in self.app.text_area])
+
+        next(button for button in self.app.button if button.key == "social-request-back").click().run(timeout=30)
+        self.assertFalse(self.app.exception)
+        self.assertIn(widget_key, [widget.key for widget in self.app.text_area])
+
+    def test_child_and_grown_up_requests_can_be_shown_and_return_to_editing(self):
+        self._show_request(
+            "social-kid-script",
+            "Could I have a little more time?",
+            "Words for another kid",
+        )
+        self._show_request(
+            "social-adult-script",
+            "Please help me find a quiet place.",
+            "Words for a grown-up",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

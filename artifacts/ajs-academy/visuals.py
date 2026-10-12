@@ -39,6 +39,23 @@ _CSS = """
 .aj-ill svg{max-width:100%;}
 .aj-welcome{border-radius:30px;overflow:hidden;border:1px solid #24364B14;
   box-shadow:0 18px 40px -24px #24364B66;animation:ajIn .6s ease both;}
+.st-key-social-request-showcase{
+  position:fixed;inset:0;z-index:100000;width:100vw;height:100dvh;max-width:none!important;
+  box-sizing:border-box;padding:clamp(1rem,5vw,4rem)!important;margin:0!important;
+  overflow:auto;background:linear-gradient(150deg,#FFF8EC 0%,#EAF4F1 100%);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+}
+.st-key-social-request-showcase>div{width:min(100%,1100px);}
+.aj-request-content{text-align:center;padding:clamp(1rem,4vw,3rem);}
+.aj-request-eyebrow{margin:0 0 .75rem;color:#3E8FB0;font-size:1rem;
+  font-weight:800;letter-spacing:.12em;text-transform:uppercase;}
+.aj-request-content h1{margin:0 0 1.5rem;color:#24364B;font-size:clamp(2rem,5vw,3rem);}
+.aj-request-quote{max-height:55dvh;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;
+  margin:0;padding:clamp(1.5rem,5vw,3rem);border-radius:28px;
+  background:#ffffffd9;border:2px solid #24364B1f;box-shadow:0 12px 30px -18px #24364B66;
+  color:#24364B;font-size:clamp(1.75rem,4.5vw,3rem);font-weight:750;line-height:1.4;}
+.aj-request-note{margin:1.25rem 0 0;color:#24364Bcc;font-size:1.15rem;}
+.st-key-social-request-showcase .stButton>button{min-height:4rem;font-size:1.25rem;}
 @keyframes ajIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes ajFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 .aj-float{animation:ajFloat 5s ease-in-out infinite;}
@@ -213,6 +230,21 @@ def hero(title: str, subtitle: str = "") -> None:
     sub = f"<p>{s}</p>" if s else ""
     st.markdown(f'<div class="aj-hero"><div class="aj-star aj-float">{_STAR}</div>'
                 f'<div><h1>{t}</h1>{sub}</div></div>', unsafe_allow_html=True)
+
+
+def request_showcase(title: str, phrase: str) -> None:
+    """Render a safely escaped, high-visibility local help request."""
+    safe_title = _html.escape(str(title or ""))
+    safe_phrase = _html.escape(str(phrase or ""))
+    st.markdown(
+        '<div class="aj-request-content">'
+        '<p class="aj-request-eyebrow">Ready to show</p>'
+        f'<h1>{safe_title}</h1>'
+        f'<div class="aj-request-quote">{safe_phrase}</div>'
+        '<p class="aj-request-note">Show this screen to someone nearby. Nothing is sent or shared.</p>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def welcome_art() -> None:
