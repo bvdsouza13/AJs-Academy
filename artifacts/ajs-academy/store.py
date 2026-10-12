@@ -127,7 +127,9 @@ def complete_task(task_id):
 
 def authenticate(role, supplied):
     """Single-family prototype gate, with persistent global role lockout."""
-    expected = os.environ.get("PARENT_PASSWORD", "") if role == "parent" else "Gen Academy"
+    if role != "parent":
+        return False, "Only parent access uses password authentication."
+    expected = os.environ.get("PARENT_PASSWORD", "")
     with connection() as c:
         c.execute("INSERT INTO academy_auth_attempts(key) VALUES(%s) ON CONFLICT DO NOTHING", (role,))
         failures, blocked = c.execute("SELECT failures,blocked_until FROM academy_auth_attempts WHERE key=%s FOR UPDATE", (role,)).fetchone()

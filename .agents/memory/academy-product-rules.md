@@ -37,3 +37,9 @@ The user explicitly chose password-free entry to the existing family child view,
 **Why:** After disclosure that anyone able to reach the app could access child-visible saved content, the user selected “Existing family child view.”
 
 **How to apply:** Do not reintroduce parent approval for child entry or silently substitute synthetic data. Preserve parent-only authorization and do not describe the accessible child view as anonymized. This access policy supersedes the earlier child-session approval requirement.
+
+“Preview Watson” in the initial login request was a dictation misunderstanding, not a new product name.
+
+**Why:** The user clarified that “preview what's on” means showing the available Academy sections.
+
+**How to apply:** Use that clarification over the older literal wording in the entry-screen plan; do not rename the Academy.

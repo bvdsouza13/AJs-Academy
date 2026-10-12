@@ -321,3 +321,19 @@ def scenario_illustration(kind: str, height: int = 180) -> None:
         "ask_again": "Illustration of a note and a question mark for asking again",
     }
     st.markdown(_svg(art, height, label=labels.get(kind, "Social practice scene")), unsafe_allow_html=True)
+
+
+def welcome_preview(pages) -> None:
+    """Static, compact 3x3 overview of Academy sections: (label, art, description) tuples."""
+    st.markdown("## AJ's Academy")
+    items = list(pages or [])[:9]
+    for start in range(0, len(items), 3):
+        cols = st.columns(3)
+        for col, item in zip(cols, items[start:start + 3]):
+            label, art, desc = (tuple(item) + ("", "", ""))[:3]
+            with col:
+                with st.container(border=True):
+                    illustration(art, height=90)
+                    st.markdown(f"**{_html.escape(str(label or ''))}**")
+                    if desc:
+                        st.caption(str(desc))

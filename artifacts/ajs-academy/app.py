@@ -90,39 +90,32 @@ def _idle_session_guard():
     if _expire_idle_session():
         st.rerun()
 
+def _start_session(role):
+    """Role transitions discard all previous drafts and media permissions."""
+    secure_media.revoke_session(st.session_state.get("media_session_nonce"))
+    st.session_state.clear()
+    st.session_state.role = role
+    st.session_state.last_active = db.now().timestamp()
+    st.session_state.media_session_nonce = secure_media.new_session_nonce()
+    st.session_state.page = "Parent portal" if role == "parent" else "Home"
+    st.rerun()
+
 def login(parent=False):
     if not parent:
-        v.welcome_art()
-        st.title("Your next adventure starts here.")
-        st.write("Learn something. Try something. Grow a little.")
-    else:
-        v.hero("Parent portal", "A private place for the grown-up details.")
-    with st.form("parent_login" if parent else "login"):
-        role = "parent" if parent else st.radio("Who’s here?", ["AJ", "Parent"], horizontal=True)
-        password = st.text_input("Parent password" if parent else "Your password", type="password")
-        approval = ""
-        if not parent:
-            approval = st.text_input("Parent authorization for AJ’s session", type="password",
-                                    help="A parent enters their password once to open a private child session. Not needed when signing in as Parent.")
-        submit = st.form_submit_button("Let’s begin" if not parent else "Unlock parent portal", type="primary", use_container_width=True)
+        v.welcome_preview(PAGES[1:])
+        if st.button("Let’s Begin", type="primary", use_container_width=True):
+            _start_session("child")
+        return
+    v.hero("Parent portal", "A private place for the grown-up details.")
+    with st.form("parent_login"):
+        password = st.text_input("Parent password", type="password")
+        submit = st.form_submit_button("Unlock parent portal", type="primary", use_container_width=True)
     if submit:
-        target = "parent" if role in ("Parent","parent") else "child"
-        if target == "child":
-            authorized, reason = db.authenticate("parent", approval)
-            if not authorized:
-                st.error("A parent needs to authorize this session. " + reason)
-                return
-        ok, reason = db.authenticate(target, password)
+        ok, reason = db.authenticate("parent", password)
         if ok:
-            secure_media.revoke_session(st.session_state.get("media_session_nonce"))
-            st.session_state.clear()
-            st.session_state.role = target
-            st.session_state.last_active = db.now().timestamp()
-            st.session_state.media_session_nonce = secure_media.new_session_nonce()
-            st.session_state.page = "Parent portal" if target == "parent" else "Home"
-            st.rerun()
+            _start_session("parent")
         st.error(reason)
-    st.caption("Private family access. A parent authorizes each new child session. Sessions expire after 30 minutes without interaction.")
+    st.caption("Parent access requires a password. Sessions expire after 30 minutes without interaction.")
 
 _expire_idle_session()
 if not st.session_state.get("role"):
@@ -154,12 +147,7 @@ with st.sidebar:
     if st.button("Parent portal", use_container_width=True):
         go("Parent portal")
     if parent and st.button("Switch to AJ’s view", use_container_width=True):
-        secure_media.revoke_session(st.session_state.get("media_session_nonce"))
-        st.session_state.clear()
-        st.session_state.role = "child"
-        st.session_state.last_active = db.now().timestamp()
-        st.session_state.media_session_nonce = secure_media.new_session_nonce()
-        go("Home")
+        _start_session("child")
     if st.button("Sign out", use_container_width=True):
         secure_media.revoke_session(st.session_state.get("media_session_nonce"))
         st.session_state.clear()
@@ -1177,7 +1165,7 @@ def parent_portal():
         login(parent=True)
         return
     v.hero("The grown-up corner", "Encourage the effort. Adjust the plan. Keep the important things private.")
-    st.info("Private family prototype. Each new child session requires parent authorization. Do not share your parent password; use “Switch to AJ’s view” to hand over the iPad.")
+    st.info("Family prototype. Anyone able to reach this app can enter the child view. Parent controls require a password; use “Switch to AJ’s view” to hand over the iPad.")
     tab=st.selectbox("Manage",["Points & tasks","Rewards & wishlist","Arcade access","Diary & privacy","Soccer videos","AI story studio","Social Skills & privacy","Financial reports","Family backup"])
     if tab=="Points & tasks":
         with st.form("settings"):

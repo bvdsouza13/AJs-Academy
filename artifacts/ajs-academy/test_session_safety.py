@@ -1,5 +1,6 @@
 """Isolated session tests; no real credentials, family data, or database writes."""
 import copy
+import os
 import time
 import unittest
 from pathlib import Path
@@ -34,7 +35,9 @@ class SessionSafetyTests(unittest.TestCase):
         self.app.run(timeout=30)
         self.assertFalse(self.app.exception)
         store.load.assert_not_called()
-        self.assertTrue(any(t.label == "Your password" for t in self.app.text_input))
+        self.assertFalse(self.app.text_input)
+        self.assertFalse(self.app.radio)
+        self.assertTrue(any(b.label == "Let’s Begin" for b in self.app.button))
 
     def test_parent_session_is_active_just_before_idle_timeout(self):
         self.signed_in(age=1799)
@@ -51,7 +54,7 @@ class SessionSafetyTests(unittest.TestCase):
         self.assertNotIn("role", self.app.session_state)
         self.assertNotIn("draft", self.app.session_state)
         self.assertNotIn(nonce, secure_media._sessions)
-        self.assertTrue(any(t.label == "Your password" for t in self.app.text_input))
+        self.assertTrue(any(b.label == "Let’s Begin" for b in self.app.button))
 
     def test_handoff_clears_parent_drafts_and_requires_reauthentication(self):
         self.app.session_state["draft"] = "synthetic parent-only draft"
@@ -110,12 +113,40 @@ class SessionSafetyTests(unittest.TestCase):
         self.assertNotIn("role", self.app.session_state)
         self.assertNotIn("draft", self.app.session_state)
 
-    def test_child_login_requires_parent_approval(self):
+    def test_child_entry_needs_no_auth_and_clears_stale_drafts(self):
         with patch("store.authenticate", return_value=(False, "Not authorized")) as auth:
+            self.app.session_state["draft"] = "stale parent draft"
             self.app.run(timeout=30)
-            self.click("Let’s begin")
-            auth.assert_called_once_with("parent", "")
-        self.assertNotIn("role", self.app.session_state)
+            self.click("Let’s Begin")
+            auth.assert_not_called()
+        self.assertEqual(self.app.session_state["role"], "child")
+        self.assertNotIn("draft", self.app.session_state)
+        self.assertEqual(self.app.session_state["page"], "Home")
+
+    def test_parent_password_failure_and_success(self):
+        self.signed_in(role="child", page="Parent portal")
+        with patch("store.authenticate", return_value=(False, "That password did not match.")) as auth:
+            self.app.text_input[0].set_value("synthetic-wrong")
+            self.click("Unlock parent portal")
+            auth.assert_called_once_with("parent", "synthetic-wrong")
+        self.assertEqual(self.app.session_state["role"], "child")
+        self.assertFalse(any(s.label == "Manage" for s in self.app.selectbox))
+        old_nonce = self.app.session_state["media_session_nonce"]
+        with patch("store.authenticate", return_value=(True, "")):
+            self.app.text_input[0].set_value("synthetic-correct")
+            self.click("Unlock parent portal")
+        self.assertEqual(self.app.session_state["role"], "parent")
+        self.assertNotIn(old_nonce, secure_media._sessions)
+        self.assertTrue(any(s.label == "Manage" for s in self.app.selectbox))
+
+    def test_preview_names_all_nine_sections_without_family_data(self):
+        self.app.run(timeout=30)
+        rendered = " ".join(str(element.value) for element in self.app.main
+                            if element.type in ("markdown", "subheader", "caption", "title"))
+        for label in ("My Investments", "My College Dream", "My Diary", "AJ’s Reminders",
+                      "Soccer", "LEGO", "AI Discoveries", "My Arcade", "AJ’s Social Skills"):
+            self.assertIn(label, rendered)
+        self.assertNotIn("Preview Watson", rendered)
         store.load.assert_not_called()
 
     def test_private_media_rejects_requests_without_a_live_session(self):
@@ -215,6 +246,47 @@ class SessionSafetyTests(unittest.TestCase):
             nonces = list(secure_media._sessions)
         for nonce in nonces:
             secure_media.revoke_session(nonce)
+
+
+class ParentAuthenticationTests(unittest.TestCase):
+    def test_missing_secret_fails_closed_and_only_configured_secret_works(self):
+        for configured, supplied, allowed in (
+            ("", "", False), ("", "synthetic-wrong", False),
+            ("synthetic-test-only", "synthetic-wrong", False),
+            ("synthetic-test-only", "synthetic-test-only", True),
+        ):
+            with self.subTest(configured=bool(configured), allowed=allowed):
+                with patch.dict(os.environ, {"PARENT_PASSWORD": configured}), \
+                     patch("store.connection") as connect:
+                    c = connect.return_value.__enter__.return_value
+                    c.execute.return_value.fetchone.return_value = (0, None)
+                    self.assertEqual(store.authenticate("parent", supplied)[0], allowed)
+
+    def test_lockout_prevents_even_correct_password(self):
+        from datetime import timedelta
+        with patch.dict(os.environ, {"PARENT_PASSWORD": "synthetic-test-only"}), \
+             patch("store.connection") as connect:
+            c = connect.return_value.__enter__.return_value
+            c.execute.return_value.fetchone.return_value = (5, store.now() + timedelta(minutes=5))
+            allowed, reason = store.authenticate("parent", "synthetic-test-only")
+            self.assertFalse(allowed)
+            self.assertIn("wait", reason)
+            self.assertEqual(c.execute.call_count, 2)
+
+    def test_fifth_failure_sets_lockout(self):
+        with patch.dict(os.environ, {"PARENT_PASSWORD": "synthetic-test-only"}), \
+             patch("store.connection") as connect:
+            c = connect.return_value.__enter__.return_value
+            c.execute.return_value.fetchone.return_value = (4, None)
+            self.assertFalse(store.authenticate("parent", "synthetic-wrong")[0])
+            params = c.execute.call_args.args[1]
+            self.assertEqual(params[0], 5)
+            self.assertGreater(params[1], store.now())
+
+    def test_non_parent_password_role_is_rejected(self):
+        with patch("store.connection") as connect:
+            self.assertFalse(store.authenticate("child", "synthetic-test-only")[0])
+            connect.assert_not_called()
 
 
 if __name__ == "__main__":
