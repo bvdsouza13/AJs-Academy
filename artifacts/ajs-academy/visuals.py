@@ -359,15 +359,44 @@ def scenario_illustration(kind: str, height: int = 180) -> None:
 
 
 def welcome_preview(pages) -> None:
-    """Static, compact 3x3 overview of Academy sections: (label, art, description) tuples."""
-    st.markdown("## AJ's Academy")
-    items = list(pages or [])[:9]
-    for start in range(0, len(items), 3):
-        cols = st.columns(3)
-        for col, item in zip(cols, items[start:start + 3]):
-            label, art, desc = (tuple(item) + ("", "", ""))[:3]
-            with col:
-                with st.container(border=True):
+    """Colorful, static section previews without reading private family data."""
+    colors = [
+        ("#79DFBD", "#D9FFF0"), ("#76C9FA", "#DFF4FF"), ("#FFAD8A", "#FFEADB"),
+        ("#FFD15F", "#FFF1BD"), ("#8AD783", "#E4F8D7"), ("#C1A1F2", "#EFE2FF"),
+        ("#88DCE3", "#DFFAFF"), ("#F3A4CD", "#FFE4F1"), ("#B2BCFF", "#E8ECFF"),
+    ]
+    css = """
+    .st-key-academy-entry h1{
+      color:#163A70;font-size:clamp(2.4rem,5vw,3.5rem);font-weight:850;
+      letter-spacing:-.035em;text-align:center;padding:.8rem 1rem 1.2rem;
+      background:linear-gradient(115deg,#95DDFF,#BDF1CD 48%,#FFDA79);
+      border-radius:26px;margin-bottom:1rem;box-shadow:0 7px 0 #163A7014;
+    }
+    .st-key-academy-entry [class*="st-key-welcome-tile-"]{
+      padding:1rem;border-radius:22px;border:2px solid #FFFFFFAA;
+      box-shadow:0 6px 0 #24364B18;
+    }
+    .st-key-academy-entry [class*="st-key-welcome-tile-"] p{
+      color:#24364B;line-height:1.45;
+    }
+    .st-key-academy-entry [class*="st-key-welcome-tile-"] strong{
+      font-size:1.08rem;font-weight:800;
+    }
+    """
+    for index, (first, second) in enumerate(colors):
+        css += (
+            f".st-key-academy-entry .st-key-welcome-tile-{index}"
+            f"{{background:linear-gradient(145deg,{first},{second});}}"
+        )
+    st.markdown("<style>" + css + "</style>", unsafe_allow_html=True)
+    with st.container(key="academy-entry"):
+        st.title("AJ's Academy")
+        items = list(pages or [])[:9]
+        for start in range(0, len(items), 3):
+            cols = st.columns(3)
+            for offset, (col, item) in enumerate(zip(cols, items[start:start + 3])):
+                label, art, desc = (tuple(item) + ("", "", ""))[:3]
+                with col, st.container(key=f"welcome-tile-{start + offset}"):
                     illustration(art, height=90)
                     st.markdown(f"**{_html.escape(str(label or ''))}**")
                     if desc:

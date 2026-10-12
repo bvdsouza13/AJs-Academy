@@ -5,3 +5,4 @@
 - [Streamlit private media](streamlit-private-media.md) — media and download URLs need authorization independently of script-level login and private storage.
 - [Git publication privacy](git-publication-privacy.md) — publish a clean code-only history to private GitHub; inherited checkpoint history includes family account uploads.
 - [Academy state evolution](academy-state-evolution.md) — additive defaults merge into old JSONB records; semantic renames or conversions need explicit migrations.
+- [Preview readiness](preview-readiness.md) — the initial Streamlit shell can be blank before the welcome page finishes loading.
