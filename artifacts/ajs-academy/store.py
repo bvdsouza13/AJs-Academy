@@ -62,18 +62,45 @@ DEFAULT = {
     "social_interests": [], "social_phrases": [], "social_scenarios": [],
 }
 
+def upgrade_state(state):
+    """Backfill defaults into an existing family document without replacing saved data."""
+    if not isinstance(state, dict):
+        raise ValueError("Saved Academy family records must be a JSON object.")
+
+    def merge(saved, defaults, path):
+        upgraded = copy.deepcopy(saved)
+        for key, default in defaults.items():
+            if key not in saved:
+                upgraded[key] = copy.deepcopy(default)
+            elif isinstance(default, dict):
+                value = saved[key]
+                if not isinstance(value, dict):
+                    raise ValueError(f"Saved Academy records have an invalid {path}.{key} section.")
+                upgraded[key] = merge(value, default, f"{path}.{key}")
+            elif isinstance(default, list) and not isinstance(saved[key], list):
+                raise ValueError(f"Saved Academy records have an invalid {path}.{key} collection.")
+        return upgraded
+
+    return merge(state, DEFAULT, "state")
+
 def connection():
     return psycopg.connect(os.environ["DATABASE_URL"])
 
 def load():
     with connection() as c:
-        row = c.execute("SELECT data FROM academy_state WHERE id=1").fetchone()
-    return row[0] if row else copy.deepcopy(DEFAULT)
+        row = c.execute("SELECT data FROM academy_state WHERE id=1 FOR UPDATE").fetchone()
+        if not row:
+            return copy.deepcopy(DEFAULT)
+        saved = row[0]
+        state = upgrade_state(saved)
+        if state != saved:
+            c.execute("UPDATE academy_state SET data=%s WHERE id=1", (Jsonb(state),))
+    return state
 
 def change(fn):
     with connection() as c:
         c.execute("INSERT INTO academy_state(id,data) VALUES(1,%s) ON CONFLICT DO NOTHING", (Jsonb(DEFAULT),))
-        s = c.execute("SELECT data FROM academy_state WHERE id=1 FOR UPDATE").fetchone()[0]
+        s = upgrade_state(c.execute("SELECT data FROM academy_state WHERE id=1 FOR UPDATE").fetchone()[0])
         result = fn(s)
         c.execute("UPDATE academy_state SET data=%s WHERE id=1", (Jsonb(s),))
     return result

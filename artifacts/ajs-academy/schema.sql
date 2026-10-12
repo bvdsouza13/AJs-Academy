@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS academy_state (
     id integer PRIMARY KEY,
     data jsonb NOT NULL
 );
+-- JSONB state defaults and older-document upgrades are handled by store.upgrade_state on load and write.
 CREATE TABLE IF NOT EXISTS academy_auth_attempts (
     key text PRIMARY KEY,
     failures integer NOT NULL DEFAULT 0,
