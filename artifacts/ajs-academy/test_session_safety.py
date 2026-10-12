@@ -80,6 +80,29 @@ class SessionSafetyTests(unittest.TestCase):
         self.assertTrue(any(t.label == "Parent password" for t in self.app.text_input))
         self.assertFalse(any(s.label == "Manage" for s in self.app.selectbox))
 
+    def test_child_cannot_access_parent_backup_controls(self):
+        self.signed_in(role="child")
+        self.app.session_state["page"] = "Parent portal"
+        self.app.run(timeout=30)
+        self.assertFalse(any(s.label == "Manage" for s in self.app.selectbox))
+        self.assertTrue(any(t.label == "Parent password" for t in self.app.text_input))
+
+    def test_parent_portal_lists_private_family_backup(self):
+        self.signed_in()
+        manage = next(select for select in self.app.selectbox if select.label == "Manage")
+        self.assertIn("Family backup", manage.options)
+
+    def test_parent_backup_download_is_bound_to_parent_session(self):
+        self.signed_in()
+        next(select for select in self.app.selectbox if select.label == "Manage").set_value("Family backup").run(timeout=30)
+        self.click("Prepare family backup")
+        self.assertTrue(self.app.session_state["academy-backup-download"].startswith(b"PK"))
+        with secure_media._lock:
+            records = [record for record in secure_media._media.values()
+                       if record.filename and record.filename.startswith("ajs-academy-backup-")]
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].allowed_roles, frozenset({"parent"}))
+
     def test_logout_clears_role_and_drafts(self):
         self.signed_in()
         self.app.session_state["draft"] = "synthetic draft"

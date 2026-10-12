@@ -15,6 +15,7 @@ import finance as fin
 import financial_demo
 from finance_views import parent_statements, child_performance
 import secure_media
+import backup as family_backup
 import content
 import visuals as v
 from schools import baseline
@@ -1155,7 +1156,7 @@ def parent_portal():
         return
     v.hero("The grown-up corner", "Encourage the effort. Adjust the plan. Keep the important things private.")
     st.info("Private family prototype. Each new child session requires parent authorization. Do not share your parent password; use “Switch to AJ’s view” to hand over the iPad.")
-    tab=st.selectbox("Manage",["Points & tasks","Rewards & wishlist","Arcade access","Diary & privacy","Soccer videos","AI story studio","Social Skills & privacy","Financial reports"])
+    tab=st.selectbox("Manage",["Points & tasks","Rewards & wishlist","Arcade access","Diary & privacy","Soccer videos","AI story studio","Social Skills & privacy","Financial reports","Family backup"])
     if tab=="Points & tasks":
         with st.form("settings"):
             enabled=st.toggle("Award points for routines",value=settings["points_enabled"])
@@ -1351,6 +1352,79 @@ def parent_portal():
     elif tab=="Financial reports":
         kind=st.radio("Account",["custody","college"],format_func=lambda x:"Custodial account" if x=="custody" else "529 college plan",horizontal=True)
         finance_parent(kind)
+    elif tab=="Family backup":
+        st.subheader("Download a private family backup")
+        st.caption("The ZIP contains Academy family records and copies of their attached photos and videos. Environment secrets, credentials, and storage paths are not included.")
+        if st.button("Prepare family backup", type="primary"):
+            try:
+                with st.spinner("Collecting family records and attachments…"):
+                    archive = family_backup.build_archive(state)
+                st.session_state["academy-backup-download"] = archive
+                st.success("Backup is ready. The download link works only for this active parent session.")
+            except Exception as exc:
+                st.session_state.pop("academy-backup-download", None)
+                safe_error("The backup could not be prepared. No family records were changed.", exc)
+        archive = st.session_state.get("academy-backup-download")
+        if archive:
+            secure_media.download_link(
+                "Download private Academy backup",
+                archive,
+                f"ajs-academy-backup-{db.today()}.zip",
+                "application/zip",
+                nonce=st.session_state.media_session_nonce,
+                role=st.session_state.role,
+            )
+        st.divider()
+        st.subheader("Restore a family backup")
+        st.warning("Restore replaces all current Academy records with the backup. It does not merge records. Existing records are not changed until you review the preview and confirm. Old, unreferenced media files remain in private storage.")
+        backup_file=st.file_uploader("Choose an Academy backup ZIP",type=["zip"],key="academy-backup-upload")
+        uploaded_bytes=backup_file.getvalue() if backup_file else None
+        uploaded_digest=hashlib.sha256(uploaded_bytes).hexdigest() if uploaded_bytes else None
+        if st.button("Validate and preview restore", disabled=not backup_file):
+            try:
+                preview=family_backup.inspect_archive(uploaded_bytes)
+                st.session_state["academy-backup-preview"]={
+                    "digest": uploaded_digest,
+                    "current_digest": family_backup.state_digest(state),
+                    "preview": preview,
+                }
+                st.success("Backup validated. Review its contents before restoring.")
+            except Exception as exc:
+                st.session_state.pop("academy-backup-preview",None)
+                safe_error("This backup could not be validated. Current family records were not changed.",exc)
+        saved_preview=st.session_state.get("academy-backup-preview")
+        if saved_preview and saved_preview.get("digest")==uploaded_digest:
+            preview=saved_preview["preview"]
+            st.write("**Backup contents**")
+            st.caption(f"Included attachments: {preview['summary']['attachments']}")
+            st.dataframe(
+                pd.DataFrame(
+                    [{"Record section": name.replace("_"," ").title(), "Records": count}
+                     for name,count in preview["summary"]["sections"].items()]
+                ),
+                hide_index=True,
+                use_container_width=True,
+            )
+            st.caption("Your current records will be replaced, not combined with these records. Recheck the preview if you choose a different file.")
+            confirmed=st.checkbox(
+                "I understand that restoring will replace all current Academy records.",
+                key="academy-backup-confirm-"+uploaded_digest,
+            )
+            if st.button("Restore and replace current records",type="primary",disabled=not confirmed):
+                try:
+                    with st.spinner("Restoring family records and attachments…"):
+                        family_backup.restore_archive(
+                            preview,
+                            saved_preview["current_digest"],
+                            delete=lambda meta: db.storage_client().bucket(meta["bucket"]).blob(meta["path"]).delete(),
+                        )
+                    st.session_state.pop("academy-backup-preview",None)
+                    st.session_state.pop("academy-backup-download",None)
+                    notify("Family backup restored. All Academy records now match the selected backup.")
+                except Exception as exc:
+                    safe_error("The restore did not complete. Current family records were not intentionally replaced.",exc)
+        elif saved_preview:
+            st.session_state.pop("academy-backup-preview",None)
 
 try:
     if page=="Home":home()
