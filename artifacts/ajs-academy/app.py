@@ -12,6 +12,7 @@ import streamlit as st
 from PIL import Image
 import store as db
 import finance as fin
+from finance_views import parent_statements, child_performance
 import content
 import visuals as v
 from schools import baseline
@@ -425,6 +426,7 @@ def investments():
     else:st.info("Your parent is checking the account balance. Your progress will appear once it is confirmed.")
     st.write("**A good investor asks questions:** What does the company do? Can it earn money? What could go wrong?")
     st.write("Spreading savings across different investments can reduce the risk of depending on just one company.")
+    child_performance(state, "custody")
     data=state["finance"].get("custody")
     if data:
         symbols=sorted({r["Symbol"] for r in data["records"] if r["Symbol"] not in ("--","MSPBNA")})
@@ -460,12 +462,15 @@ def college():
         st.progress(pct,text=f"{pct:.1%} toward our college cost estimate")
     else:st.info("Your parent is setting up this school’s full-cost estimate.")
     st.caption("These are places to explore, not promises of admission or a professional soccer career. College soccer and professional soccer are different.")
+    child_performance(state, "college")
     if parent:st.divider();finance_parent("college")
 
 def finance_parent(kind):
     if not parent:st.stop()
     data=state["finance"].get(kind)
     st.subheader("529 savings details" if kind=="college" else "Custodial account details")
+    parent_statements(state, kind)
+    st.divider()
     f=st.file_uploader("Replace the account export",type=["csv"],key="csv-"+kind)
     if f and st.button("Import this CSV",key="import-"+kind):
         try:
@@ -529,7 +534,7 @@ def finance_parent(kind):
         st.dataframe(pd.DataFrame([{"Annual return assumption":f"{r}%","Monthly contribution":round(fin.payment(amount,future,13,r)),
                                    "Annual contribution":round(fin.payment(amount,future,13,r)*12)} for r in [3,5,7]]),hide_index=True)
         st.caption("13-year horizon; monthly end-of-month deposits, annual effective returns, no taxes or fees modeled. Returns are uncertain; these are planning scenarios, not investment advice.")
-        st.info("Personal realized gains, total return, and allocation by current market value remain unverified until we reconcile opening holdings and current positions. The exported “Total” is not treated as an account balance.")
+        st.info("The activity export alone cannot establish personal gains or current holdings. Use the statement evidence section above for reconciled performance. The exported “Total” is not treated as an account balance.")
     with st.expander("Sanitized transaction report"):
         df=pd.DataFrame(data["records"])
         st.dataframe(df,hide_index=True)

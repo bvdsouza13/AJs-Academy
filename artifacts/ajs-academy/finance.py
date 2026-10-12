@@ -6,6 +6,7 @@ from datetime import datetime
 import math
 import pandas as pd
 import streamlit as st
+from account_performance import parse_statement_csv, export_statement_csv, reconcile, money_weighted, TEMPLATE, GUIDE
 
 def number(value):
     value = str(value).replace("$", "").replace(",", "").replace("(", "-").replace(")", "").strip()
@@ -66,21 +67,7 @@ def future_cost(annual, years, inflation):
     return sum(annual * (1 + inflation / 100) ** (years + y) for y in range(4))
 
 def xirr(flows):
-    if not flows or not any(v < 0 for _,v in flows) or not any(v > 0 for _,v in flows):
-        return None
-    start = min(d for d,_ in flows)
-    def npv(rate):
-        return sum(v / (1 + rate) ** ((d-start).days/365.25) for d,v in flows)
-    lo, hi = -.999, 10.
-    if npv(lo) * npv(hi) > 0:
-        return None
-    for _ in range(160):
-        mid = (lo+hi)/2
-        if npv(lo)*npv(mid) <= 0:
-            hi = mid
-        else:
-            lo = mid
-    return (lo+hi)/2*100
+    return money_weighted([(d.isoformat(), v) for d, v in flows])
 
 def positions(data):
     amounts, traded, income = defaultdict(float), defaultdict(float), defaultdict(float)
