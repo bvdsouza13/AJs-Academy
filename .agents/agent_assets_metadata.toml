@@ -28,3 +28,31 @@ mtime_ms = 1791779192512
 storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:df335d2f-e866-4d08-a193-716ec77b3a17/c3b723b5-0be6-4079-a862-844b3351d5d6/4beacb77-dc3f-4e4e-a10d-d809321d2a73"
 storage_version_token = "1791779199159837"
 content_type = "text/html"
+
+[[outputs]]
+id = "07Ynis_H28U4F8E6RSJJL"
+uri = "file://generated-artifacts/ajs-academy-code-storage-reference.docx"
+type = "word_document"
+title = "AJ’s Academy — Code and Data Reference"
+description = "Editable Word guide with code-file inventory, key-functions table, PostgreSQL schema, JSONB collections, and object-storage map."
+logical_id = "d14f23fd-6c5c-428d-a768-531286e5544d"
+content_hash = "sha256:ac61f0b5f94667adf345447ce9299860865ab1fa4c511a741e6bdf5b2100b10f"
+size = 14433
+mtime_ms = 1791779970163
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:df335d2f-e866-4d08-a193-716ec77b3a17/d14f23fd-6c5c-428d-a768-531286e5544d/06ee6355-4464-4b93-a76b-9844f42c2d68"
+storage_version_token = "1791779985432643"
+content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+[[outputs]]
+id = "CzUkxYm1pirkksYOqYqGi"
+uri = "file://generated-artifacts/ajs-academy-code-storage-reference.html"
+type = "html"
+title = "AJ’s Academy — Browser Reference"
+description = "Self-contained, responsive, printable edition with the same six reference tables."
+logical_id = "7ed7d592-c2c9-4ca3-b964-e396861bc9f3"
+content_hash = "sha256:f3999ec945787f7aa2fa51fec70873e00fbc85e6a4737e2c921bac989dc0509a"
+size = 25322
+mtime_ms = 1791779970171
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:df335d2f-e866-4d08-a193-716ec77b3a17/7ed7d592-c2c9-4ca3-b964-e396861bc9f3/3821a5c9-6949-414f-8ec9-5f99fc207cb8"
+storage_version_token = "1791779985991686"
+content_type = "text/html"
