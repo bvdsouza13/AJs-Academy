@@ -30,7 +30,7 @@ PAGES = [
     ("LEGO", "lego", "Build my next big idea"),
     ("AI Discoveries", "ai", "Explore how computers learn"),
     ("My Arcade", "arcade", "A game I built myself"),
-    ("AJ’s Social Skills", "social", "Something new is coming"),
+    ("AJ’s Social Skills", "social", "Find words and practice talking"),
 ]
 
 def go(page):
@@ -181,7 +181,7 @@ def home():
                 v.illustration(art, 130)
                 st.subheader(label)
                 st.caption(desc)
-                if st.button("Coming soon" if art=="social" else "Let’s explore", key="tile-"+art, use_container_width=True):
+                if st.button("Let’s explore", key="tile-"+art, use_container_width=True):
                     go(label)
     rewards()
 
@@ -400,6 +400,187 @@ def ai():
                 db.change(lambda s:db.award(s,key,s["settings"]["ai_points"],"AI discovery challenge"))
                 notify("Well done for trying a new idea!")
 
+def social():
+    v.hero("AJ’s Social Skills", "Find words, take a pause, and practice talking.")
+    st.caption("You can skip any question. This is a helper, not a test.")
+    help_tab, meaning_tab, practice_tab, phrases_tab = st.tabs(
+        ["Help me", "What might they mean?", "Conversation practice", "My helpful words"])
+
+    with help_tab:
+        v.illustration("social", 150)
+        st.subheader("Help me, AJ")
+        st.write("Choose a feeling and what might help. You do not have to explain everything.")
+        st.caption("What you type stays on this page unless you choose to save the words below. Saved words are visible to your parent.")
+        feeling = st.selectbox("I might be feeling", content.SOCIAL_FEELINGS, key="social-feeling")
+        need = st.selectbox("I might need", list(content.SOCIAL_NEEDS), key="social-need")
+        context_key = "social-context"
+        if context_key not in st.session_state:
+            st.session_state[context_key] = ""
+        audio_status = st.session_state.pop("social-help-audio-status", "")
+        if audio_status:
+            st.info(audio_status)
+        if settings.get("social_audio_enabled", False):
+            slot = st.session_state.get("social-help-audio-slot", 0)
+            audio = st.audio_input("Or say a few words", key=f"social-help-audio-{slot}")
+            st.caption("If you choose to use voice, your clip is sent to OpenAI for transcription. AJ Academy does not save the clip.")
+            if audio and st.button("Use my voice", key=f"social-help-audio-submit-{slot}"):
+                try:
+                    st.session_state[context_key] = content.transcribe(audio.getvalue(), "social-help.wav")[:500]
+                    st.session_state["social-help-audio-status"] = "Your words are ready. Check or change them below."
+                except Exception:
+                    st.session_state["social-help-audio-status"] = "Voice help is unavailable right now. You can type instead."
+                st.session_state["social-help-audio-slot"] = slot + 1
+                st.rerun()
+        else:
+            st.caption("A parent can turn on voice transcription in the parent portal. Typing is always available.")
+        context = st.text_area("What is happening? (optional)", key=context_key, max_chars=500,
+                               placeholder="You can leave this blank.")
+        scripts = content.social_scripts(feeling, context, need)
+        if "social-kid-script" not in st.session_state:
+            st.session_state["social-kid-script"] = scripts["kid"]
+        if "social-adult-script" not in st.session_state:
+            st.session_state["social-adult-script"] = scripts["adult"]
+        if st.button("Make words I can use", type="primary", use_container_width=True):
+            st.session_state["social-kid-script"] = scripts["kid"]
+            st.session_state["social-adult-script"] = scripts["adult"]
+        kid_script = st.text_area("Words for another kid", key="social-kid-script", max_chars=700, height=100)
+        adult_script = st.text_area("Words for a grown-up", key="social-adult-script", max_chars=700, height=120)
+        help_phrase = settings.get("social_help_phrase") or "Help me, AJ, help Connor."
+        st.info(f"Your help phrase: “{help_phrase}”")
+        st.info("If you feel unsafe or need help now, find a grown-up you trust.")
+        if st.button("Help me find a grown-up", key="social-find-adult", use_container_width=True):
+            st.warning(f"Show them this: “I need help right now. {help_phrase}”")
+        if st.button("Save these words for later", key="save-social-phrases", use_container_width=True):
+            if not kid_script.strip() and not adult_script.strip():
+                st.warning("Write a phrase before saving.")
+            else:
+                db.change(lambda s: s.setdefault("social_phrases", []).append({
+                    "id": uuid.uuid4().hex, "kid": kid_script.strip(), "adult": adult_script.strip(),
+                    "date": db.today(),
+                }))
+                notify("Your words are saved. Your parent can see them.")
+
+    with meaning_tab:
+        v.illustration("social", 120)
+        st.subheader("What might they mean?")
+        st.write("Words can be tricky. You can type what you heard, take a picture of written words, or—if the speaker agrees—record a short clip.")
+        if not settings.get("social_ai_enabled", False):
+            st.info("A parent needs to turn on this helper before words or pictures are sent to AI.")
+        else:
+            st.caption("When you ask, the words or picture are sent to Replit AI Integrations (OpenAI) for an answer. AJ Academy does not save your input or recording. AI use may use account credits.")
+        slot = st.session_state.get("social-meaning-slot", 0)
+        quote = st.text_area("Type or paste the words", key=f"social-quote-{slot}", max_chars=2000,
+                             placeholder="What did you hear?")
+        camera_photo = st.camera_input("Take a picture of the written words (not a person)",
+                                       key=f"social-meaning-camera-{slot}") if settings.get("social_ai_enabled", False) else None
+        uploaded_photo = st.file_uploader("Or choose a picture of written words", type=["png", "jpg", "jpeg", "webp"],
+                                          key=f"social-meaning-upload-{slot}") if settings.get("social_ai_enabled", False) else None
+        audio = None
+        consent = False
+        if settings.get("social_audio_enabled", False) and settings.get("social_ai_enabled", False):
+            consent = st.checkbox("I told the speaker we are recording, and they said yes.",
+                                  key=f"social-speaker-consent-{slot}")
+            audio = st.audio_input("Record a short clip of what was said", key=f"social-meaning-audio-{slot}")
+            st.caption("Only record after telling the speaker and getting permission. The recording is sent for transcription and is not saved by AJ Academy.")
+        elif settings.get("social_audio_enabled", False):
+            st.caption("A parent must also enable the AI helper before recording can be used.")
+        result = st.session_state.get("social-meaning-result")
+        if result:
+            with st.container(border=True):
+                st.subheader("One possible way to understand it")
+                st.write("**Literal meaning**")
+                st.write(result["literal_meaning"])
+                st.write("**It might be a joke or sarcasm**")
+                st.write(result["possible_meaning"])
+                st.write("**You could ask**")
+                st.write(result["what_to_say"])
+                st.write("**If it still feels confusing**")
+                st.write(result["trusted_adult"])
+                st.caption("This is only a possibility. The helper cannot know what someone meant.")
+            if st.button("Clear this answer", key="clear-social-answer"):
+                st.session_state.pop("social-meaning-result", None)
+                st.rerun()
+        error = st.session_state.pop("social-meaning-error", "")
+        if error:
+            st.warning(error)
+        if st.button("Help me understand", type="primary", disabled=not settings.get("social_ai_enabled", False),
+                     key=f"social-meaning-submit-{slot}", use_container_width=True):
+            error_message = ""
+            if audio and not consent:
+                error_message = "Tell the speaker what you are doing and get their permission before recording."
+            elif camera_photo and uploaded_photo:
+                error_message = "Choose either the camera picture or the uploaded picture, not both."
+            elif not quote.strip() and not camera_photo and not uploaded_photo and not audio:
+                error_message = "Add some words, a picture, or a recording to ask about."
+            else:
+                try:
+                    image_bytes = camera_photo.getvalue() if camera_photo else uploaded_photo.getvalue() if uploaded_photo else None
+                    words = quote.strip()
+                    if audio:
+                        transcript = content.transcribe(audio.getvalue(), "social-context.wav")
+                        words = (words + "\n" + transcript).strip()
+                    st.session_state["social-meaning-result"] = content.interpret_social(words, image_bytes)
+                except Exception:
+                    error_message = "The helper is unavailable right now. You can ask a trusted grown-up."
+                    st.session_state.pop("social-meaning-result", None)
+            st.session_state["social-meaning-error"] = error_message
+            st.session_state["social-meaning-slot"] = slot + 1
+            st.rerun()
+        if st.button("Clear my words and picture", key=f"clear-social-input-{slot}"):
+            st.session_state.pop("social-meaning-result", None)
+            st.session_state["social-meaning-slot"] = slot + 1
+            st.rerun()
+
+    with practice_tab:
+        v.illustration("social", 150)
+        st.subheader("A little conversation practice")
+        st.write("Try one small step at a time: ask, listen, then share.")
+        ask_col, listen_col, share_col = st.columns(3)
+        with ask_col, st.container(border=True):
+            st.subheader("1 · Ask")
+            st.write("Ask a kind question about something the other person likes.")
+        with listen_col, st.container(border=True):
+            st.subheader("2 · Listen")
+            st.write("Give them time. Notice one thing they tell you.")
+        with share_col, st.container(border=True):
+            st.subheader("3 · Share")
+            st.write("Tell them one thing you like, too. You can pass if you want.")
+        cards = state.get("social_interests", [])
+        if not cards:
+            st.info("A parent can add a few people and interests in the parent portal. You can practice the steps above now.")
+        else:
+            card_id = st.selectbox("Who would you like to talk with?", [c["id"] for c in cards],
+                                   format_func=lambda cid: next(c["person"] for c in cards if c["id"] == cid),
+                                   key="social-practice-person")
+            card = next(c for c in cards if c["id"] == card_id)
+            interest = st.selectbox("Pick one of their interests", card["interests"], key="social-practice-interest")
+            question_style = st.radio("Choose a starter", ["Ask what they like", "Ask how they started", "Ask for an idea"],
+                                      horizontal=True, key="social-practice-style")
+            starter = {
+                "Ask what they like": f"What do you like about {interest}?",
+                "Ask how they started": f"How did you get interested in {interest}?",
+                "Ask for an idea": f"What is one fun thing I could try with {interest}?",
+            }[question_style]
+            st.success(f"Try asking: “{starter}”")
+            st.caption("You can ask, listen, and share—or stop whenever you want. This practice is never scored.")
+
+    with phrases_tab:
+        st.subheader("My helpful words")
+        st.caption("Only phrases you chose to save appear here. Your parent can see and remove them.")
+        saved = state.get("social_phrases", [])
+        if not saved:
+            st.info("When you save a phrase, it will be ready here.")
+        for phrase in reversed(saved):
+            with st.expander(f"Saved {phrase.get('date', '')}"):
+                if phrase.get("kid"):
+                    st.write("**For another kid:** " + phrase["kid"])
+                if phrase.get("adult"):
+                    st.write("**For a grown-up:** " + phrase["adult"])
+                if st.button("Remove these words", key="remove-social-phrase-"+phrase["id"]):
+                    db.change(lambda s: s.__setitem__("social_phrases",
+                        [p for p in s.get("social_phrases", []) if p["id"] != phrase["id"]]))
+                    notify("Saved words removed.")
+
 def arcade():
     v.hero("I built this!", "Your own creation deserves a special place.")
     v.illustration("arcade",220)
@@ -546,7 +727,7 @@ def parent_portal():
         return
     v.hero("The grown-up corner", "Encourage the effort. Adjust the plan. Keep the important things private.")
     st.info("Private family prototype. Each new child session requires parent authorization. Do not share your parent password; use “Switch to AJ’s view” to hand over the iPad.")
-    tab=st.selectbox("Manage",["Points & tasks","Rewards & wishlist","Arcade access","Diary & privacy","Soccer videos","AI story studio","Financial reports"])
+    tab=st.selectbox("Manage",["Points & tasks","Rewards & wishlist","Arcade access","Diary & privacy","Soccer videos","AI story studio","Social Skills & privacy","Financial reports"])
     if tab=="Points & tasks":
         with st.form("settings"):
             enabled=st.toggle("Award points for routines",value=settings["points_enabled"])
@@ -663,6 +844,78 @@ def parent_portal():
                     db.change(lambda s:s["stories"].append({**draft,"id":uuid.uuid4().hex,"title":title,"story":story,
                         "challenge":challenge,"question":question,"date":db.today(),"approved":True}))
                     del st.session_state.draft;notify("Story approved and available to AJ.")
+    elif tab=="Social Skills & privacy":
+        st.subheader("Social Skills privacy and setup")
+        st.caption("AI requests are sent through Replit AI Integrations to OpenAI. AJ Academy does not save what AJ types for interpretation, audio recordings, uploaded pictures, or their transcripts. AI use may use account credits.")
+        with st.form("social-privacy-settings"):
+            allow_ai=st.toggle("Enable AI help for interpreting words and written context",
+                               value=settings.get("social_ai_enabled",False))
+            allow_audio=st.toggle("Enable one-time microphone transcription",
+                                  value=settings.get("social_audio_enabled",False))
+            help_phrase=st.text_input("Trusted-adult help phrase",
+                                      value=settings.get("social_help_phrase","Help me, AJ, help Connor."),
+                                      max_chars=160)
+            st.caption("Microphone access is also gated by the AI setting. For another person's voice, AJ must confirm they were told and agreed for each recording.")
+            if st.form_submit_button("Save social privacy settings"):
+                db.change(lambda s:s["settings"].update(
+                    social_ai_enabled=allow_ai,
+                    social_audio_enabled=allow_audio,
+                    social_help_phrase=help_phrase.strip() or "Help me, AJ, help Connor.",
+                ))
+                notify("Social Skills privacy settings saved.")
+        st.divider()
+        st.subheader("Conversation interest cards")
+        st.caption("Use a first name or relationship and a few interests only—no contact details. AJ can see these cards.")
+        with st.form("new-social-interest"):
+            person=st.text_input("Person or relationship",max_chars=50,placeholder="For example: Coach or Sam")
+            interest_text=st.text_input("Interests (separate with commas)",max_chars=240,
+                                        placeholder="soccer, drawing, space")
+            if st.form_submit_button("Add interest card"):
+                interests=list(dict.fromkeys(x.strip()[:60] for x in interest_text.split(",") if x.strip()))[:5]
+                if not person.strip() or not interests:
+                    st.warning("Add a person or relationship and at least one interest.")
+                else:
+                    db.change(lambda s:s.setdefault("social_interests",[]).append({
+                        "id":uuid.uuid4().hex,"person":person.strip()[:50],"interests":interests,
+                    }))
+                    notify("Interest card added.")
+        for card in state.get("social_interests",[]):
+            with st.expander(card.get("person","Conversation card")):
+                st.caption("Interests: "+", ".join(card.get("interests",[])))
+                with st.form("edit-social-interest-"+card["id"]):
+                    new_person=st.text_input("Person or relationship",value=card["person"],max_chars=50,
+                                             key="social-person-"+card["id"])
+                    new_interests=st.text_input("Interests, separated with commas",
+                                                value=", ".join(card["interests"]),max_chars=240,
+                                                key="social-interests-"+card["id"])
+                    if st.form_submit_button("Save changes"):
+                        parsed=list(dict.fromkeys(x.strip()[:60] for x in new_interests.split(",") if x.strip()))[:5]
+                        if not new_person.strip() or not parsed:
+                            st.warning("Keep a person or relationship and at least one interest.")
+                        else:
+                            def update_interest(s):
+                                item=next(x for x in s.get("social_interests",[]) if x["id"]==card["id"])
+                                item.update(person=new_person.strip()[:50],interests=parsed)
+                            db.change(update_interest);notify("Interest card updated.")
+                if st.button("Delete this interest card",key="delete-social-interest-"+card["id"]):
+                    db.change(lambda s:s.__setitem__("social_interests",
+                        [x for x in s.get("social_interests",[]) if x["id"]!=card["id"]]))
+                    notify("Interest card deleted.")
+        st.divider()
+        st.subheader("Phrases AJ chose to save")
+        st.caption("Saved wording is visible to the family and can be removed here or in AJ’s view.")
+        saved=state.get("social_phrases",[])
+        if not saved:
+            st.info("No phrases have been saved.")
+        for phrase in reversed(saved):
+            with st.container(border=True):
+                st.caption("Saved "+phrase.get("date",""))
+                if phrase.get("kid"):st.write("**For another kid:** "+phrase["kid"])
+                if phrase.get("adult"):st.write("**For a grown-up:** "+phrase["adult"])
+                if st.button("Delete saved phrase",key="parent-delete-social-phrase-"+phrase["id"]):
+                    db.change(lambda s:s.__setitem__("social_phrases",
+                        [p for p in s.get("social_phrases",[]) if p["id"]!=phrase["id"]]))
+                    notify("Saved phrase deleted.")
     elif tab=="Financial reports":
         kind=st.radio("Account",["custody","college"],format_func=lambda x:"Custodial account" if x=="custody" else "529 college plan",horizontal=True)
         finance_parent(kind)
@@ -678,9 +931,7 @@ try:
     elif page=="AI Discoveries":ai()
     elif page=="My Arcade":arcade()
     elif page=="AJ’s Social Skills":
-        v.hero("AJ’s Social Skills", "A new place to learn, together.")
-        v.illustration("social",230)
-        st.info("Coming soon. We’ll choose these activities together. Nothing here is assessed or scored.")
+        social()
     elif page=="Parent portal":parent_portal()
 except Exception:
     st.error("This section could not load. Please refresh or try again shortly. Private details have not been displayed.")

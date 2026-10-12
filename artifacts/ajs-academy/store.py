@@ -38,10 +38,13 @@ DEFAULT = {
                  "transcription": False, "arcade_until": "", "arcade_override": False,
                  "residency": "Florida", "college_years": 11, "goal": 500000,
                  "inflation": 2.5, "college_inflation": 4.0,
+                  "social_ai_enabled": False, "social_audio_enabled": False,
+                  "social_help_phrase": "Help me, AJ, help Connor.",
                  "opening_complete": False, "custody_balance": None, "custody_asof": "",
                  "school_costs": {}, "favorite_school": "Stanford"},
     "ledger": [], "completions": {}, "diary": [], "practice": [], "wishes": [],
     "rewards": [], "requests": [], "stories": [], "finance": {}, "approved_videos": [],
+    "social_interests": [], "social_phrases": [],
 }
 
 def connection():
