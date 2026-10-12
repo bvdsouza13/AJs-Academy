@@ -1,0 +1,36 @@
+Fund Account Number,Fund Name,Price,Shares,Total Value
+000000000-01,Demo 2036-2037 Enrollment Portfolio,$15.27,387.3837,$5915.35
+
+Account Number,Trade Date,Process Date,Transaction Type,Transaction Description,Investment Name,Share Price,Shares,Gross Amount,Net Amount
+000000000-01,10/06/2025,10/06/2025,Recurring Contribution,Recurring Contribution,Demo 2036-2037 Enrollment Portfolio,$14.26,12.2721,$175,$175
+000000000-01,09/09/2025,09/09/2025,Recurring Contribution,Recurring Contribution,Demo 2036-2037 Enrollment Portfolio,$15.56,11.2468,$175,$175
+000000000-01,08/06/2025,08/06/2025,Recurring Contribution,Recurring Contribution,Demo 2036-2037 Enrollment Portfolio,$16.19,23.1624,$375,$375
+000000000-01,07/07/2025,07/07/2025,Recurring Contribution,Recurring Contribution,Demo 2036-2037 Enrollment Portfolio,$16.99,19.1289,$325,$325
+000000000-01,06/06/2025,06/06/2025,Recurring Contribution,Recurring Contribution,Demo 2036-2037 Enrollment Portfolio,$14.64,11.9536,$175,$175
+000000000-01,05/06/2025,05/06/2025,Recurring Contribution,Recurring Contribution,Demo 2036-2037 Enrollment Portfolio,$16.25,13.8462,$225,$225
+000000000-01,04/07/2025,04/07/2025,Recurring Contribution,Recurring Contribution,Demo 2036-2037 Enrollment Portfolio,$12.59,21.8427,$275,$275
+000000000-01,03/06/2025,03/06/2025,Recurring Contribution,Recurring Contribution,Demo 2036-2037 Enrollment Portfolio,$11.86,23.1872,$275,$275
+000000000-01,02/28/2025,02/28/2025,Exchange In - Fund Conversion,Exchange In - Fund Conversion,Demo 2036-2037 Enrollment Portfolio,$11.90,194.6311,$2316.11,$2316.11
+000000000-01,02/28/2025,02/28/2025,Exchange Out - Fund Conversion,Exchange Out - Fund Conversion,Demo Balanced Portfolio,$67.03,-34.5534,$-2316.11,$-2316.11
+000000000-01,02/28/2025,02/28/2025,Exchange In - Fund Conversion,Exchange In - Fund Conversion,Demo 2036-2037 Enrollment Portfolio,$15.00,56.1127,$841.69,$841.69
+000000000-01,02/28/2025,02/28/2025,Exchange Out - Fund Conversion,Exchange Out - Fund Conversion,Demo Equity Index Portfolio,$51.69,-16.2835,$-841.69,$-841.69
+000000000-01,02/06/2025,02/06/2025,Recurring Contribution,Recurring Contribution,Demo Equity Index Portfolio,$42.31,1.5363,$65,$65
+000000000-01,02/06/2025,02/06/2025,Recurring Contribution,Recurring Contribution,Demo Balanced Portfolio,$90.58,3.3120,$300,$300
+000000000-01,01/06/2025,01/06/2025,Recurring Contribution,Recurring Contribution,Demo Equity Index Portfolio,$48.83,1.8431,$90,$90
+000000000-01,01/06/2025,01/06/2025,Recurring Contribution,Recurring Contribution,Demo Balanced Portfolio,$79.32,3.7821,$300,$300
+000000000-01,12/06/2024,12/06/2024,Recurring Contribution,Recurring Contribution,Demo Equity Index Portfolio,$42.47,2.1191,$90,$90
+000000000-01,12/06/2024,12/06/2024,Recurring Contribution,Recurring Contribution,Demo Balanced Portfolio,$77.21,3.1084,$240,$240
+000000000-01,11/06/2024,11/06/2024,Recurring Contribution,Recurring Contribution,Demo Equity Index Portfolio,$48.78,0.8200,$40,$40
+000000000-01,11/06/2024,11/06/2024,Recurring Contribution,Recurring Contribution,Demo Balanced Portfolio,$75.27,3.9857,$300,$300
+000000000-01,10/07/2024,10/07/2024,Recurring Contribution,Recurring Contribution,Demo Equity Index Portfolio,$40.67,0.9835,$40,$40
+000000000-01,10/07/2024,10/07/2024,Recurring Contribution,Recurring Contribution,Demo Balanced Portfolio,$86.89,2.0716,$180,$180
+000000000-01,09/06/2024,09/06/2024,Recurring Contribution,Recurring Contribution,Demo Equity Index Portfolio,$38.24,1.6998,$65,$65
+000000000-01,09/06/2024,09/06/2024,Recurring Contribution,Recurring Contribution,Demo Balanced Portfolio,$75.04,3.1983,$240,$240
+000000000-01,08/06/2024,08/06/2024,Recurring Contribution,Recurring Contribution,Demo Equity Index Portfolio,$41.04,1.5838,$65,$65
+000000000-01,08/06/2024,08/06/2024,Recurring Contribution,Recurring Contribution,Demo Balanced Portfolio,$60.72,2.9644,$180,$180
+000000000-01,07/08/2024,07/08/2024,Recurring Contribution,Recurring Contribution,Demo Equity Index Portfolio,$40.05,1.6230,$65,$65
+000000000-01,07/08/2024,07/08/2024,Recurring Contribution,Recurring Contribution,Demo Balanced Portfolio,$63.99,2.8129,$180,$180
+000000000-01,06/06/2024,06/06/2024,Recurring Contribution,Recurring Contribution,Demo Equity Index Portfolio,$35.85,2.5105,$90,$90
+000000000-01,06/06/2024,06/06/2024,Recurring Contribution,Recurring Contribution,Demo Balanced Portfolio,$62.59,4.7931,$300,$300
+000000000-01,05/06/2024,05/06/2024,Recurring Contribution,Recurring Contribution,Demo Equity Index Portfolio,$41.55,1.5644,$65,$65
+000000000-01,05/06/2024,05/06/2024,Recurring Contribution,Recurring Contribution,Demo Balanced Portfolio,$66.30,4.5249,$300,$300

@@ -14,6 +14,12 @@ For Social Skills, do not diagnose, score emotions, or claim certainty about ano
 
 **How to apply:** Keep low-pressure communication prompts available without AI, keep interpretation temporary by default, and make any saved phrase reviewable and removable by the child and parent.
 
+The parent explicitly chose a reversible, financial-only view of scrambled demo data, not replacement of saved accounts.
+
+**Why:** Original exports, reviewed statements, balances and assumptions must remain available when demo mode is turned off.
+
+**How to apply:** Keep demo imports/read-only examples separate from saved financial evidence. Do not treat financial demo mode as anonymization of the whole app: diary, photos, rewards and other family data remain unchanged.
+
 Reward points carry over indefinitely. Parents set routine points and a default points-per-dollar conversion, with per-item overrides. The arcade is a parent-approved, primarily weekend privilege and never costs points.
 
 **Why:** The user explicitly distinguished earned rewards from access to a game the child built.

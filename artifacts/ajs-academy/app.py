@@ -12,6 +12,7 @@ import streamlit as st
 from PIL import Image
 import store as db
 import finance as fin
+import financial_demo
 from finance_views import parent_statements, child_performance
 import secure_media
 import content
@@ -749,8 +750,16 @@ def arcade():
         st.info("Your arcade is resting. Ask a parent to unlock it for the weekend.")
     st.caption("No points needed—you built this. This lock controls the Academy link, not direct access to the external game.")
 
+def financial_view():
+    return financial_demo.view(state)
+
+
 def investments():
+    state = financial_view()
+    settings = state["settings"]
     v.hero("Little savings, big possibilities", "Owning a stock means owning a tiny part of a company.")
+    if financial_demo.enabled(state):
+        financial_demo.label()
     for col,(art,title) in zip(st.columns(3),[("home","My first home"),("vacation","A vacation each year"),("car","My first car")]):
         with col,st.container(border=True):v.illustration(art,140);st.subheader(title)
     if settings.get("custody_balance") is not None:
@@ -758,7 +767,10 @@ def investments():
         progress=min(1.,max(0.,settings["custody_balance"]/nominal))
         st.progress(progress,text=f"{progress:.1%} toward my future savings goal")
         st.caption("Based on a balance entered by your parent—not a live account value. These dreams share one savings goal.")
-    else:st.info("Your parent is checking the account balance. Your progress will appear once it is confirmed.")
+    else:
+        st.info("These are practice examples. There is no checked account balance in this "
+                "demo, so we won't guess your savings progress." if financial_demo.enabled(state)
+                else "Your parent is checking the account balance. Your progress will appear once it is confirmed.")
     st.write("**A good investor asks questions:** What does the company do? Can it earn money? What could go wrong?")
     st.write("Spreading savings across different investments can reduce the risk of depending on just one company.")
     child_performance(state, "custody")
@@ -767,7 +779,7 @@ def investments():
         symbols=sorted({r["Symbol"] for r in data["records"] if r["Symbol"] not in ("--","MSPBNA")})
         symbol=st.selectbox("Explore a company from the account history",symbols)
         st.caption("A symbol in this list does not mean you still own it.")
-        if st.button("See its market performance"):
+        if st.button("See its market performance", disabled=financial_demo.enabled(state)):
             try:
                 with st.spinner("Checking historical prices…"):
                     prices=fin.market_history(symbol,data["start"])
@@ -776,18 +788,26 @@ def investments():
                 st.line_chart(prices/prices.iloc[0]*100,y_label="Starting value = 100")
                 st.caption(f"Yahoo Finance via yfinance · {prices.index[0].date()} to {prices.index[-1].date()}. Adjusted prices include corporate-action adjustments. This is not your personal account return.")
             except Exception as exc:safe_error("Market history is unavailable for this symbol. No return has been estimated.",exc)
-        news_reader([symbol],"stock company")
+        if financial_demo.enabled(state):
+            st.caption("These companies come from fictional activity. Live-price and news actions "
+                       "are unavailable in the financial demo; no personal return is estimated.")
+        else:
+            news_reader([symbol],"stock company")
     if parent:
         st.divider();finance_parent("custody")
 
 def college():
+    state = financial_view()
+    settings = state["settings"]
     v.hero("Where could my curiosity take me?", "Build things. Start a business. Play soccer.")
+    if financial_demo.enabled(state):
+        financial_demo.label()
     favorite=st.selectbox("Explore a school",[s[0] for s in fin.SCHOOLS],index=[s[0] for s in fin.SCHOOLS].index(settings["favorite_school"]))
     school=next(s for s in fin.SCHOOLS if s[0]==favorite)
     v.illustration("college",200)
     st.subheader(school[0]);st.write(school[3])
     st.caption(f"{school[1]} · {school[2]}")
-    if st.button("Save as my dream school"):
+    if st.button("Save as my dream school", disabled=financial_demo.enabled(state)):
         db.change(lambda s:s["settings"].__setitem__("favorite_school",favorite));notify("Dream school saved. You can change your mind anytime.")
     data=state["finance"].get("college")
     costs=settings["school_costs"].get(f"{favorite}|{settings['residency']}",baseline(favorite,settings["residency"]))
@@ -802,6 +822,10 @@ def college():
 
 def finance_parent(kind):
     if not parent:st.stop()
+    if financial_demo.controls(state, kind):
+        st.subheader("529 savings details" if kind=="college" else "Custodial account details")
+        financial_demo.parent_report(financial_demo.view(state), kind)
+        return
     data=state["finance"].get(kind)
     st.subheader("529 savings details" if kind=="college" else "Custodial account details")
     parent_statements(state, kind)
