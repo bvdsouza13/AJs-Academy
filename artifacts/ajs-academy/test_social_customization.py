@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from streamlit.testing.v1 import AppTest
 import store
+import visuals
 
 
 class SocialCustomizationTests(unittest.TestCase):
@@ -37,22 +38,42 @@ class SocialCustomizationTests(unittest.TestCase):
         self.assertFalse(self.app.exception)
 
     def test_parent_can_add_edit_reorder_and_remove_support_choices(self):
+        saved_count = len(self.state["settings"]["social_supports"])
         add_values = {
             "New support label": "Movement break",
             "Picture symbol": "🏃",
             "Words AJ could use": "Could I walk for a moment?",
             "Words for a grown-up": "Please help AJ take a short walk.",
         }
+        add_keys = {
+            "New support label": "social-support-new-label",
+            "Picture symbol": "social-support-new-icon",
+            "Words AJ could use": "social-support-new-kid",
+            "Words for a grown-up": "social-support-new-adult",
+        }
         for label, value in add_values.items():
-            next(widget for widget in self.app.text_input
-                 if widget.label == label and widget.key is None).set_value(value)
-        self._submit("FormSubmitter:add-social-support-Add support choice")
+            self.app.text_input(key=add_keys[label]).set_value(value)
+        self.app.run(timeout=30)
+        self.assertFalse(self.app.exception)
+        preview = "\n".join(widget.value for widget in self.app.markdown)
+        self.assertIn("Movement break", preview)
+        self.assertIn("🏃", preview)
+        self.assertIn("Could I walk for a moment?", preview)
+        self.assertIn("Please help AJ take a short walk.", preview)
+        self.assertEqual(len(self.state["settings"]["social_supports"]), saved_count)
+        self._submit("add-social-support-save")
         created = self.state["settings"]["social_supports"][-1]
         support_id = created["id"]
 
         self.app.text_input(key=f"social-support-label-{support_id}").set_value("A short walk")
         self.app.text_input(key=f"social-support-kid-{support_id}").set_value("May I walk for a minute?")
-        self._submit(f"FormSubmitter:edit-social-support-{support_id}-Save support choice")
+        self.app.run(timeout=30)
+        self.assertFalse(self.app.exception)
+        preview = "\n".join(widget.value for widget in self.app.markdown)
+        self.assertIn("A short walk", preview)
+        self.assertIn("May I walk for a minute?", preview)
+        self.assertEqual(created["label"], "Movement break")
+        self._submit(f"save-social-support-{support_id}")
         created = next(item for item in self.state["settings"]["social_supports"]
                        if item["id"] == support_id)
         self.assertEqual(created["label"], "A short walk")
@@ -91,6 +112,10 @@ class SocialCustomizationTests(unittest.TestCase):
         self.app.session_state["page"] = "AJ’s Social Skills"
         self.app.run(timeout=30)
         self.assertFalse(self.app.exception)
+        self.assertNotIn(
+            "AJ’s preview",
+            "\n".join(widget.value for widget in self.app.markdown),
+        )
         self.assertFalse(any("feeling" in widget.label.lower() for widget in self.app.selectbox))
         self.assertFalse(self.state["settings"]["social_ai_enabled"])
         self.assertFalse(self.state["settings"]["social_audio_enabled"])
@@ -109,6 +134,20 @@ class SocialCustomizationTests(unittest.TestCase):
         self.assertIn("My teacher", kid_words)
         self.assertIn("My teacher", adult_words)
         self.assertFalse(self.app.exception)
+
+
+class SocialSupportPreviewTests(unittest.TestCase):
+    def test_custom_preview_text_is_escaped_before_rendering(self):
+        with patch("visuals.st.markdown") as render:
+            visuals.social_support_preview(
+                "<img>", "<script>alert(1)</script>", "<b>kid wording</b>", "adult wording",
+            )
+
+        markup = render.call_args.args[0]
+        self.assertIn("&lt;img&gt;", markup)
+        self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", markup)
+        self.assertIn("&lt;b&gt;kid wording&lt;/b&gt;", markup)
+        self.assertNotIn("<script>", markup)
 
 
 class SocialRequestShowcaseTests(unittest.TestCase):

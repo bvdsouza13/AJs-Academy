@@ -56,6 +56,19 @@ _CSS = """
   color:#24364B;font-size:clamp(1.75rem,4.5vw,3rem);font-weight:750;line-height:1.4;}
 .aj-request-note{margin:1.25rem 0 0;color:#24364Bcc;font-size:1.15rem;}
 .st-key-social-request-showcase .stButton>button{min-height:4rem;font-size:1.25rem;}
+.aj-support-preview{display:flex;flex-direction:column;gap:.8rem;padding:.9rem;
+  border-radius:20px;background:#EEF6F4;border:1px solid #24364B1f;}
+.aj-support-preview-title{margin:0;color:#24364B;font-size:1rem;font-weight:800;}
+.aj-support-tile{display:flex;min-height:5.4rem;align-items:center;justify-content:center;gap:.8rem;
+  padding:.8rem 1rem;border-radius:18px;background:#ffffffcc;border:2px solid #24364B22;
+  box-shadow:0 4px 0 #24364B1f;color:#24364B;text-align:center;font-size:1.3rem;font-weight:750;
+  overflow-wrap:anywhere;}
+.aj-support-icon{font-size:2rem;line-height:1;}
+.aj-support-wording{padding:.7rem .8rem;border-radius:14px;background:#ffffffb3;
+  color:#24364B;overflow-wrap:anywhere;}
+.aj-support-wording-label{display:block;margin-bottom:.25rem;color:#3E8FB0;
+  font-size:.82rem;font-weight:800;}
+.aj-support-wording-text{white-space:pre-wrap;line-height:1.4;}
 @keyframes ajIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes ajFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 .aj-float{animation:ajFloat 5s ease-in-out infinite;}
@@ -242,6 +255,28 @@ def request_showcase(title: str, phrase: str) -> None:
         f'<h1>{safe_title}</h1>'
         f'<div class="aj-request-quote">{safe_phrase}</div>'
         '<p class="aj-request-note">Show this screen to someone nearby. Nothing is sent or shared.</p>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def social_support_preview(icon: str, label: str, kid_request: str, adult_request: str) -> None:
+    """Show a parent a child-sized tile and the two request phrases being edited."""
+    safe_icon = _html.escape(str(icon or "").strip())
+    safe_label = _html.escape(str(label or "").strip() or "Choice label")
+    safe_kid_request = _html.escape(str(kid_request or "").strip() or "Add words AJ could use.")
+    safe_adult_request = _html.escape(str(adult_request or "").strip() or "Add words for a grown-up.")
+    st.markdown(
+        '<div class="aj-support-preview" aria-label="AJ’s help choice preview">'
+        '<p class="aj-support-preview-title">AJ’s preview</p>'
+        f'<div class="aj-support-tile"><span class="aj-support-icon">{safe_icon}</span>'
+        f'<span>{safe_label}</span></div>'
+        '<div class="aj-support-wording"><span class="aj-support-wording-label">'
+        'Words AJ could show another kid</span>'
+        f'<div class="aj-support-wording-text">{safe_kid_request}</div></div>'
+        '<div class="aj-support-wording"><span class="aj-support-wording-label">'
+        'Words AJ could show a grown-up</span>'
+        f'<div class="aj-support-wording-text">{safe_adult_request}</div></div>'
         '</div>',
         unsafe_allow_html=True,
     )

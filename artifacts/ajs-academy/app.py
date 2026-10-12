@@ -919,6 +919,12 @@ def finance_parent(kind):
 
 def parent_social_support_settings(state):
     settings = state["settings"]
+    if st.session_state.pop("_reset-social-support-new", False):
+        for key in (
+            "social-support-new-label", "social-support-new-icon",
+            "social-support-new-kid", "social-support-new-adult",
+        ):
+            st.session_state.pop(key, None)
     supports = content.available_social_supports(
         settings.get("social_supports", db.DEFAULT["settings"]["social_supports"])
     )
@@ -931,48 +937,70 @@ def parent_social_support_settings(state):
     st.subheader("AJ’s help choices")
     st.caption("Choose a simple picture symbol and wording that feels right for AJ. He can change either request before using it.")
     if len(supports) < content.MAX_SOCIAL_SUPPORTS:
-        with st.form("add-social-support"):
-            label = st.text_input("New support label", max_chars=40, placeholder="For example: Take a movement break")
-            icon = st.text_input("Picture symbol", max_chars=8, placeholder="For example: 🧩")
-            kid_request = st.text_input("Words AJ could use", max_chars=160,
-                                        placeholder="Could I take a movement break?")
-            adult_request = st.text_input("Words for a grown-up", max_chars=160,
-                                          placeholder="Please help AJ take a movement break.")
-            if st.form_submit_button("Add support choice"):
-                candidate = supports + [{
-                    "id": uuid.uuid4().hex, "icon": icon, "label": label,
-                    "kid_request": kid_request, "adult_request": adult_request,
-                }]
-                try:
-                    cleaned = content.validate_social_supports(candidate)
-                    db.change(lambda s: s["settings"].__setitem__("social_supports", cleaned))
-                    notify("Support choice added.")
-                except ValueError as exc:
-                    st.warning(str(exc))
+        with st.container(border=True):
+            st.markdown("**Add a support choice**")
+            fields, preview = st.columns([1, 1])
+            with fields:
+                label = st.text_input(
+                    "New support label", max_chars=40, placeholder="For example: Take a movement break",
+                    key="social-support-new-label",
+                )
+                icon = st.text_input(
+                    "Picture symbol", max_chars=8, placeholder="For example: 🧩",
+                    key="social-support-new-icon",
+                )
+                kid_request = st.text_input(
+                    "Words AJ could use", max_chars=160,
+                    placeholder="Could I take a movement break?",
+                    key="social-support-new-kid",
+                )
+                adult_request = st.text_input(
+                    "Words for a grown-up", max_chars=160,
+                    placeholder="Please help AJ take a movement break.",
+                    key="social-support-new-adult",
+                )
+                if st.button("Add support choice", key="add-social-support-save"):
+                    candidate = supports + [{
+                        "id": uuid.uuid4().hex, "icon": icon, "label": label,
+                        "kid_request": kid_request, "adult_request": adult_request,
+                    }]
+                    try:
+                        cleaned = content.validate_social_supports(candidate)
+                        db.change(lambda s: s["settings"].__setitem__("social_supports", cleaned))
+                        st.session_state["_reset-social-support-new"] = True
+                        notify("Support choice added.")
+                    except ValueError as exc:
+                        st.warning(str(exc))
+            with preview:
+                v.social_support_preview(icon, label, kid_request, adult_request)
     else:
         st.caption(f"AJ has the maximum of {content.MAX_SOCIAL_SUPPORTS} support choices.")
     for index, support in enumerate(supports):
         with st.expander(f"{support['icon']} {support['label']}"):
-            with st.form("edit-social-support-" + support["id"]):
-                label = st.text_input("Choice label", value=support["label"], max_chars=40,
-                                      key="social-support-label-" + support["id"])
-                icon = st.text_input("Picture symbol", value=support["icon"], max_chars=8,
-                                     key="social-support-icon-" + support["id"])
-                kid_request = st.text_input("Words AJ could use", value=support["kid_request"], max_chars=160,
-                                            key="social-support-kid-" + support["id"])
-                adult_request = st.text_input("Words for a grown-up", value=support["adult_request"], max_chars=160,
-                                              key="social-support-adult-" + support["id"])
-                if st.form_submit_button("Save support choice"):
-                    candidate = [dict(item) for item in supports]
-                    candidate[index].update(
-                        label=label, icon=icon, kid_request=kid_request, adult_request=adult_request
-                    )
-                    try:
-                        cleaned = content.validate_social_supports(candidate)
-                        db.change(lambda s: s["settings"].__setitem__("social_supports", cleaned))
-                        notify("Support choice updated.")
-                    except ValueError as exc:
-                        st.warning(str(exc))
+            with st.container(border=True):
+                fields, preview = st.columns([1, 1])
+                with fields:
+                    label = st.text_input("Choice label", value=support["label"], max_chars=40,
+                                          key="social-support-label-" + support["id"])
+                    icon = st.text_input("Picture symbol", value=support["icon"], max_chars=8,
+                                         key="social-support-icon-" + support["id"])
+                    kid_request = st.text_input("Words AJ could use", value=support["kid_request"], max_chars=160,
+                                                key="social-support-kid-" + support["id"])
+                    adult_request = st.text_input("Words for a grown-up", value=support["adult_request"], max_chars=160,
+                                                  key="social-support-adult-" + support["id"])
+                    if st.button("Save support choice", key="save-social-support-" + support["id"]):
+                        candidate = [dict(item) for item in supports]
+                        candidate[index].update(
+                            label=label, icon=icon, kid_request=kid_request, adult_request=adult_request
+                        )
+                        try:
+                            cleaned = content.validate_social_supports(candidate)
+                            db.change(lambda s: s["settings"].__setitem__("social_supports", cleaned))
+                            notify("Support choice updated.")
+                        except ValueError as exc:
+                            st.warning(str(exc))
+                with preview:
+                    v.social_support_preview(icon, label, kid_request, adult_request)
             move_left, move_right, remove_col = st.columns(3)
             with move_left:
                 if st.button("Move up", key="move-social-support-up-" + support["id"], disabled=index == 0):
