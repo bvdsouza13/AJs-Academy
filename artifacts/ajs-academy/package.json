@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "python -m streamlit run app.py --server.address 0.0.0.0 --server.port $PORT --server.headless true --browser.gatherUsageStats false",
-    "build": "python -m compileall -q app.py store.py finance.py content.py",
-    "serve": "python -m streamlit run app.py --server.address 0.0.0.0 --server.port $PORT --server.headless true --browser.gatherUsageStats false",
+    "dev": "python secure_launcher.py",
+    "build": "python -m compileall -q app.py store.py finance.py content.py finance_views.py secure_media.py secure_launcher.py",
+    "serve": "python secure_launcher.py",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

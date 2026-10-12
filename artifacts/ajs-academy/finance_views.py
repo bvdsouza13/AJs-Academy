@@ -3,6 +3,7 @@ import streamlit as st
 import pandas as pd
 import finance as fin
 import store as db
+import secure_media
 from statement_import_views import prepare_import
 from statement_import import review_statement
 
@@ -38,8 +39,14 @@ def parent_statements(state, kind):
     st.caption("Separate from the original activity export. Results use only the dated statements and complete ledger supplied here.")
     with st.expander("Prepare opening lots, dated statements and activity"):
         st.markdown(fin.GUIDE)
-        st.download_button("Download blank statement template", fin.TEMPLATE,
-                           "statement-template.csv", "text/csv", key="template-" + kind)
+        secure_media.download_link(
+            "Download blank statement template",
+            fin.TEMPLATE,
+            "statement-template.csv",
+            "text/csv",
+            nonce=st.session_state.get("media_session_nonce"),
+            role=st.session_state.get("role"),
+        )
     rows, ready, revision = prepare_import(kind)
     confirmed = st.checkbox(
         "I checked this complete ledger against the original statements, including all "
@@ -67,9 +74,14 @@ def parent_statements(state, kind):
         st.info("No dated statement evidence yet. Personal gains, allocations and returns are withheld.")
         return
     with st.expander("Manage saved statement evidence"):
-        st.download_button("Download normalized evidence",
-                           fin.export_statement_csv(evidence["rows"]),
-                           kind + "-statement-evidence.csv", "text/csv", key="evidence-" + kind)
+        secure_media.download_link(
+            "Download normalized evidence",
+            fin.export_statement_csv(evidence["rows"]),
+            kind + "-statement-evidence.csv",
+            "text/csv",
+            nonce=st.session_state.get("media_session_nonce"),
+            role=st.session_state.get("role"),
+        )
         remove = st.checkbox("Confirm removal of this account’s statement evidence", key="remove-confirm-" + kind)
         if st.button("Remove statement evidence", key="remove-" + kind, disabled=not remove):
             db.change(lambda s: s["finance"].pop(kind + "_statements", None))

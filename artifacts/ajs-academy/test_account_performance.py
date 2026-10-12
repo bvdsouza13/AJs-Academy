@@ -242,20 +242,24 @@ class BrokerImportTests(unittest.TestCase):
         state = {"finance": {}}
         for ready, confirmed in ((False, True), (True, False)):
             ui = MagicMock()
-            ui.session_state = {"role": "parent"}
+            ui.session_state = {"role": "parent", "media_session_nonce": "parent-test-session"}
             ui.checkbox.return_value = confirmed
             ui.button.return_value = True
             with patch.object(finance_views, "st", ui), patch.object(
+                    finance_views.secure_media, "download_link"), patch.object(
                     finance_views, "prepare_import", return_value=(parse(fixture()), ready, "rev")), patch.object(
                     finance_views.db, "change") as change:
                 finance_views.parent_statements(state, "custody")
                 change.assert_not_called()
         ui = MagicMock()
         ui.session_state = MagicMock()
-        ui.session_state.get.return_value = "parent"
+        ui.session_state.get.side_effect = lambda key, default=None: (
+            "parent" if key == "role" else "parent-test-session" if key == "media_session_nonce" else default
+        )
         ui.checkbox.return_value = True
         ui.button.return_value = True
         with patch.object(finance_views, "st", ui), patch.object(
+                finance_views.secure_media, "download_link"), patch.object(
                 finance_views, "prepare_import", return_value=(parse(fixture()), True, "rev")), patch.object(
                 finance_views.db, "change") as change:
             finance_views.parent_statements(state, "custody")

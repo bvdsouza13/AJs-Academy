@@ -13,6 +13,7 @@ from PIL import Image
 import store as db
 import finance as fin
 from finance_views import parent_statements, child_performance
+import secure_media
 import content
 import visuals as v
 from schools import baseline
@@ -89,21 +90,33 @@ def login(parent=False):
                 return
         ok, reason = db.authenticate(target, password)
         if ok:
+            secure_media.revoke_session(st.session_state.get("media_session_nonce"))
             st.session_state.clear()
             st.session_state.role = target
             st.session_state.last_active = db.now().timestamp()
+            st.session_state.media_session_nonce = secure_media.new_session_nonce()
             st.session_state.page = "Parent portal" if target == "parent" else "Home"
             st.rerun()
         st.error(reason)
     st.caption("Private family access. A parent authorizes each new child session. Sessions expire after 30 minutes without interaction.")
 
 if st.session_state.get("role") and db.now().timestamp() - st.session_state.get("last_active",0) > 1800:
+    secure_media.revoke_session(st.session_state.get("media_session_nonce"))
     st.session_state.clear()
 if not st.session_state.get("role"):
+    secure_media.sync_browser_session(None)
     login()
     st.stop()
 st.session_state.last_active = db.now().timestamp()
 parent = st.session_state.role == "parent"
+if not st.session_state.get("media_session_nonce"):
+    st.session_state.media_session_nonce = secure_media.new_session_nonce()
+secure_media.grant_session(
+    st.session_state.media_session_nonce,
+    st.session_state.role,
+    st.session_state.last_active + secure_media.SESSION_TTL_SECONDS,
+)
+secure_media.sync_browser_session(st.session_state.media_session_nonce)
 state = db.load()
 settings = state["settings"]
 page = st.session_state.get("page","Home")
@@ -118,11 +131,14 @@ with st.sidebar:
     if st.button("Parent portal", use_container_width=True):
         go("Parent portal")
     if parent and st.button("Switch to AJ’s view", use_container_width=True):
+        secure_media.revoke_session(st.session_state.get("media_session_nonce"))
         st.session_state.clear()
         st.session_state.role = "child"
         st.session_state.last_active = db.now().timestamp()
+        st.session_state.media_session_nonce = secure_media.new_session_nonce()
         go("Home")
     if st.button("Sign out", use_container_width=True):
+        secure_media.revoke_session(st.session_state.get("media_session_nonce"))
         st.session_state.clear()
         st.rerun()
 
@@ -141,12 +157,13 @@ if "notice" in st.session_state:
 def media(meta):
     try:
         raw = db.download(meta)
-        if meta["mime"].startswith("image/"):
-            st.image(raw, width=300)
-        elif meta["mime"].startswith("audio/"):
-            st.audio(raw)
-        elif meta["mime"].startswith("video/"):
-            st.video(raw)
+        secure_media.render(
+            raw,
+            meta["mime"],
+            meta.get("name", "Family attachment"),
+            nonce=st.session_state.media_session_nonce,
+            role=st.session_state.role,
+        )
     except Exception as exc:
         safe_error("This attachment could not be loaded. Please try again.", exc)
 
@@ -835,7 +852,14 @@ def finance_parent(kind):
     with st.expander("Sanitized transaction report"):
         df=pd.DataFrame(data["records"])
         st.dataframe(df,hide_index=True)
-        st.download_button("Download this report",df.to_csv(index=False).encode(),"transactions.csv","text/csv",key="download-"+kind)
+        secure_media.download_link(
+            "Download this report",
+            df.to_csv(index=False).encode(),
+            "transactions.csv",
+            "text/csv",
+            nonce=st.session_state.media_session_nonce,
+            role=st.session_state.role,
+        )
 
 def parent_social_support_settings(state):
     settings = state["settings"]
