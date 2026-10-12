@@ -1,12 +1,16 @@
 import base64
+import copy
 import io
 import json
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from PIL import Image
+from streamlit.testing.v1 import AppTest
 
 import content
+import store
 
 
 class SocialSkillsTests(unittest.TestCase):
@@ -158,6 +162,103 @@ class SocialSkillsTests(unittest.TestCase):
         with patch.object(content, "client", return_value=mocked_client):
             with self.assertRaisesRegex(ValueError, "trusted grown-up"):
                 content.interpret_social("What does this mean?")
+
+
+class SocialScenarioInteractionTests(unittest.TestCase):
+    def setUp(self):
+        self.state = copy.deepcopy(store.DEFAULT)
+        self.load_patch = patch("store.load", side_effect=lambda: copy.deepcopy(self.state))
+        self.change_patch = patch("store.change", side_effect=self._change)
+        self.load_patch.start()
+        self.change_patch.start()
+        self.addCleanup(self.load_patch.stop)
+        self.addCleanup(self.change_patch.stop)
+
+        self.app = AppTest.from_file(str(Path(__file__).with_name("app.py")))
+        self.app.session_state["role"] = "parent"
+        self.app.session_state["page"] = "Parent portal"
+        self.app.session_state["last_active"] = store.now().timestamp()
+        self.app.run(timeout=30)
+        self.assertFalse(self.app.exception)
+        next(widget for widget in self.app.selectbox if widget.label == "Manage").select(
+            "Social Skills & privacy"
+        ).run(timeout=30)
+        self.assertFalse(self.app.exception)
+
+    def _change(self, callback):
+        return callback(self.state)
+
+    def _button(self, key):
+        return next(button for button in self.app.button if button.key == key)
+
+    def _submit(self, key):
+        self._button(key).click().run(timeout=30)
+        self.assertFalse(self.app.exception)
+
+    def test_parent_adds_starter_drafts_approves_edits_and_removes_story(self):
+        self._submit("social-scenarios-add-starters")
+        scenarios = self.state["social_scenarios"]
+        self.assertEqual(len(scenarios), len(content.SOCIAL_SCENARIO_STARTERS))
+        self.assertTrue(all(item["approved"] is False for item in scenarios))
+        self.assertEqual(
+            {item["starter_id"] for item in scenarios},
+            {item["starter_id"] for item in content.SOCIAL_SCENARIO_STARTERS},
+        )
+
+        story = scenarios[0]
+        story_id = story["id"]
+        self.app.text_input(key=f"scenario-title-{story_id}").set_value("Joining at recess")
+        self.app.text_area(key=f"scenario-situation-{story_id}").set_value(
+            "Some kids are playing at recess, and there may be room."
+        )
+        self.app.checkbox(key=f"scenario-approved-{story_id}").set_value(True)
+        self._submit(f"FormSubmitter:edit-social-scenario-{story_id}-Save story")
+
+        saved = next(item for item in self.state["social_scenarios"] if item["id"] == story_id)
+        self.assertEqual(saved["title"], "Joining at recess")
+        self.assertEqual(saved["situation"], "Some kids are playing at recess, and there may be room.")
+        self.assertTrue(saved["approved"])
+
+        self._submit(f"delete-social-scenario-{story_id}")
+        self.assertNotIn(story_id, [item["id"] for item in self.state["social_scenarios"]])
+        self.assertEqual(len(self.state["social_scenarios"]), 3)
+
+    def test_child_only_sees_approved_stories_and_can_choose_skip_and_stop(self):
+        starters = content.SOCIAL_SCENARIO_STARTERS
+        self.state["social_scenarios"] = [
+            {**starters[0], "id": "approved-1", "approved": True},
+            {**starters[1], "id": "draft-hidden", "approved": False},
+            {**starters[2], "id": "approved-2", "approved": True},
+        ]
+        self.app.session_state["role"] = "child"
+        self.app.session_state["page"] = "AJ’s Social Skills"
+        self.app.run(timeout=30)
+        self.assertFalse(self.app.exception)
+
+        visible_story_text = repr(self.app.main)
+        self.assertNotIn("draft-hidden", visible_story_text)
+        self.assertNotIn(starters[1]["title"], visible_story_text)
+        self.assertIn(starters[0]["title"], visible_story_text)
+
+        story_picker = next(widget for widget in self.app.selectbox if widget.label == "Choose a story")
+        story_picker.select("approved-1").run(timeout=30)
+        self.assertFalse(self.app.exception)
+        self._button("social-story-choice-approved-1-0").click().run(timeout=30)
+        self.assertFalse(self.app.exception)
+        self.assertEqual(
+            self.app.session_state["social-scenario-response"],
+            ("approved-1", starters[0]["choices"][0]),
+        )
+
+        self._button("social-story-skip").click().run(timeout=30)
+        self.assertFalse(self.app.exception)
+        self.assertEqual(self.app.session_state["social-scenario-selected"], "approved-2")
+        self.assertNotIn("social-scenario-response", self.app.session_state)
+
+        self._button("social-story-stop").click().run(timeout=30)
+        self.assertFalse(self.app.exception)
+        self.assertFalse(self.app.session_state["social-practice-active"])
+        self.assertTrue(any("Practice is paused" in item.value for item in self.app.caption))
 
 
 if __name__ == "__main__":
