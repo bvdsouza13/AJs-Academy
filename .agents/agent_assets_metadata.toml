@@ -1,0 +1,30 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "fjxzFLE0vzUGQBGz_J0_E"
+uri = "file://generated-artifacts/ajs-academy-architecture-guide.docx"
+type = "word_document"
+title = "AJ’s Academy — Architecture Guide"
+description = "Editable Word document explaining every architecture component, all nine features, data flows, privacy controls, and current limitations."
+logical_id = "d6098969-4e8e-4e61-b078-9b512c3ccb91"
+content_hash = "sha256:a1ec715ff0792e59849eab5d0f39be4d65b231317b842ec39b414715a1e4d0a8"
+size = 12825
+mtime_ms = 1791779192495
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:df335d2f-e866-4d08-a193-716ec77b3a17/d6098969-4e8e-4e61-b078-9b512c3ccb91/8e490e2f-a587-433b-90a9-e771ff06d414"
+storage_version_token = "1791779198641403"
+content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+[[outputs]]
+id = "ELw8GYD5PJJy43XmB2lD7"
+uri = "file://generated-artifacts/ajs-academy-architecture-guide.html"
+type = "html"
+title = "Architecture Guide — Browser Edition"
+description = "A self-contained, readable and printable version of the same architecture document."
+logical_id = "c3b723b5-0be6-4079-a862-844b3351d5d6"
+content_hash = "sha256:72969c42911ec5024d1a11c6f87082bef2afa8e5091fa165a154c59e9b5bf7e3"
+size = 27813
+mtime_ms = 1791779192512
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:df335d2f-e866-4d08-a193-716ec77b3a17/c3b723b5-0be6-4079-a862-844b3351d5d6/4beacb77-dc3f-4e4e-a10d-d809321d2a73"
+storage_version_token = "1791779199159837"
+content_type = "text/html"

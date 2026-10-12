@@ -5,3 +5,4 @@
 .local
 attached_assets/*.csv
 __pycache__
+/generated-artifacts/
