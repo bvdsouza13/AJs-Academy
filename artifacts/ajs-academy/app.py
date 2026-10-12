@@ -429,10 +429,53 @@ def social():
     with help_tab:
         v.illustration("social", 150)
         st.subheader("Help me, AJ")
-        st.write("Choose a feeling and what might help. You do not have to explain everything.")
+        st.write("Choose something that might help. You do not have to explain everything.")
         st.caption("What you type stays on this page unless you choose to save the words below. Saved words are visible to your parent.")
-        feeling = st.selectbox("I might be feeling", content.SOCIAL_FEELINGS, key="social-feeling")
-        need = st.selectbox("I might need", list(content.SOCIAL_NEEDS), key="social-need")
+        saved_supports = settings.get("social_supports", db.DEFAULT["settings"]["social_supports"])
+        supports = content.available_social_supports(saved_supports)
+        if supports is None:
+            supports = db.DEFAULT["settings"]["social_supports"]
+        selected_support_id = st.session_state.get("social-selected-support")
+        selected_support = next((item for item in supports if item["id"] == selected_support_id), supports[0])
+        support_columns = st.columns(min(3, len(supports)))
+        for index, support in enumerate(supports):
+            with support_columns[index % len(support_columns)]:
+                selected = support["id"] == selected_support["id"]
+                if st.button(
+                    f"{support['icon']}  {support['label']}",
+                    key=f"social-support-{support['id']}",
+                    type="primary" if selected else "secondary",
+                    use_container_width=True,
+                ):
+                    st.session_state["social-selected-support"] = support["id"]
+                    selected_support = support
+                    chosen_adult = st.session_state.get("social-trusted-adult", "")
+                    if chosen_adult == "No one picked":
+                        chosen_adult = ""
+                    scripts = content.social_support_scripts(
+                        support, st.session_state.get("social-context", ""), chosen_adult
+                    )
+                    st.session_state["social-kid-script"] = scripts["kid"]
+                    st.session_state["social-adult-script"] = scripts["adult"]
+        st.caption(f"Chosen support: {selected_support['label']}")
+        adult_options = settings.get(
+            "social_trusted_adults", db.DEFAULT["settings"]["social_trusted_adults"]
+        )
+        trusted_adults = content.available_trusted_adults(adult_options)
+        chosen_adult = ""
+        if trusted_adults:
+            adult_choices = ["No one picked"] + trusted_adults
+            current_adult = st.session_state.get("social-trusted-adult", "No one picked")
+            if current_adult not in adult_choices:
+                current_adult = "No one picked"
+            chosen_adult = st.selectbox(
+                "Someone I trust (optional)", adult_choices,
+                index=adult_choices.index(current_adult), key="social-trusted-adult",
+            )
+            if chosen_adult == "No one picked":
+                chosen_adult = ""
+        else:
+            st.caption("You can choose a trusted grown-up without picking a name here.")
         context_key = "social-context"
         if context_key not in st.session_state:
             st.session_state[context_key] = ""
@@ -455,7 +498,7 @@ def social():
             st.caption("A parent can turn on voice transcription in the parent portal. Typing is always available.")
         context = st.text_area("What is happening? (optional)", key=context_key, max_chars=500,
                                placeholder="You can leave this blank.")
-        scripts = content.social_scripts(feeling, context, need)
+        scripts = content.social_support_scripts(selected_support, context, chosen_adult)
         if "social-kid-script" not in st.session_state:
             st.session_state["social-kid-script"] = scripts["kid"]
         if "social-adult-script" not in st.session_state:
@@ -794,6 +837,147 @@ def finance_parent(kind):
         st.dataframe(df,hide_index=True)
         st.download_button("Download this report",df.to_csv(index=False).encode(),"transactions.csv","text/csv",key="download-"+kind)
 
+def parent_social_support_settings(state):
+    settings = state["settings"]
+    supports = content.available_social_supports(
+        settings.get("social_supports", db.DEFAULT["settings"]["social_supports"])
+    )
+    if supports is None:
+        supports = db.DEFAULT["settings"]["social_supports"]
+    adults = content.available_trusted_adults(
+        settings.get("social_trusted_adults", db.DEFAULT["settings"]["social_trusted_adults"])
+    )
+
+    st.subheader("AJ’s help choices")
+    st.caption("Choose a simple picture symbol and wording that feels right for AJ. He can change either request before using it.")
+    if len(supports) < content.MAX_SOCIAL_SUPPORTS:
+        with st.form("add-social-support"):
+            label = st.text_input("New support label", max_chars=40, placeholder="For example: Take a movement break")
+            icon = st.text_input("Picture symbol", max_chars=8, placeholder="For example: 🧩")
+            kid_request = st.text_input("Words AJ could use", max_chars=160,
+                                        placeholder="Could I take a movement break?")
+            adult_request = st.text_input("Words for a grown-up", max_chars=160,
+                                          placeholder="Please help AJ take a movement break.")
+            if st.form_submit_button("Add support choice"):
+                candidate = supports + [{
+                    "id": uuid.uuid4().hex, "icon": icon, "label": label,
+                    "kid_request": kid_request, "adult_request": adult_request,
+                }]
+                try:
+                    cleaned = content.validate_social_supports(candidate)
+                    db.change(lambda s: s["settings"].__setitem__("social_supports", cleaned))
+                    notify("Support choice added.")
+                except ValueError as exc:
+                    st.warning(str(exc))
+    else:
+        st.caption(f"AJ has the maximum of {content.MAX_SOCIAL_SUPPORTS} support choices.")
+    for index, support in enumerate(supports):
+        with st.expander(f"{support['icon']} {support['label']}"):
+            with st.form("edit-social-support-" + support["id"]):
+                label = st.text_input("Choice label", value=support["label"], max_chars=40,
+                                      key="social-support-label-" + support["id"])
+                icon = st.text_input("Picture symbol", value=support["icon"], max_chars=8,
+                                     key="social-support-icon-" + support["id"])
+                kid_request = st.text_input("Words AJ could use", value=support["kid_request"], max_chars=160,
+                                            key="social-support-kid-" + support["id"])
+                adult_request = st.text_input("Words for a grown-up", value=support["adult_request"], max_chars=160,
+                                              key="social-support-adult-" + support["id"])
+                if st.form_submit_button("Save support choice"):
+                    candidate = [dict(item) for item in supports]
+                    candidate[index].update(
+                        label=label, icon=icon, kid_request=kid_request, adult_request=adult_request
+                    )
+                    try:
+                        cleaned = content.validate_social_supports(candidate)
+                        db.change(lambda s: s["settings"].__setitem__("social_supports", cleaned))
+                        notify("Support choice updated.")
+                    except ValueError as exc:
+                        st.warning(str(exc))
+            move_left, move_right, remove_col = st.columns(3)
+            with move_left:
+                if st.button("Move up", key="move-social-support-up-" + support["id"], disabled=index == 0):
+                    def move_support_up(s):
+                        items = content.available_social_supports(
+                            s["settings"].get("social_supports", supports)
+                        ) or list(supports)
+                        position = next(i for i, item in enumerate(items) if item["id"] == support["id"])
+                        items[position - 1], items[position] = items[position], items[position - 1]
+                        s["settings"]["social_supports"] = items
+                    db.change(move_support_up)
+                    notify("Support choice moved.")
+            with move_right:
+                if st.button("Move down", key="move-social-support-down-" + support["id"],
+                             disabled=index == len(supports) - 1):
+                    def move_support_down(s):
+                        items = content.available_social_supports(
+                            s["settings"].get("social_supports", supports)
+                        ) or list(supports)
+                        position = next(i for i, item in enumerate(items) if item["id"] == support["id"])
+                        items[position], items[position + 1] = items[position + 1], items[position]
+                        s["settings"]["social_supports"] = items
+                    db.change(move_support_down)
+                    notify("Support choice moved.")
+            with remove_col:
+                if st.button("Remove choice", key="remove-social-support-" + support["id"],
+                             disabled=len(supports) == 1):
+                    remaining = [item for item in supports if item["id"] != support["id"]]
+                    db.change(lambda s: s["settings"].__setitem__("social_supports", remaining))
+                    notify("Support choice removed.")
+
+    st.divider()
+    st.subheader("Trusted grown-ups")
+    st.caption("Use a first name or relationship only, such as “My teacher.” These labels do not include contact details and never contact anyone.")
+    if len(adults) < content.MAX_TRUSTED_ADULTS:
+        with st.form("add-social-trusted-adult"):
+            adult_label = st.text_input("Trusted-adult label", max_chars=50,
+                                        placeholder="For example: Auntie or Mr. Lee")
+            if st.form_submit_button("Add trusted grown-up"):
+                try:
+                    cleaned = content.validate_trusted_adults(adults + [adult_label])
+                    db.change(lambda s: s["settings"].__setitem__("social_trusted_adults", cleaned))
+                    notify("Trusted-grown-up label added.")
+                except ValueError as exc:
+                    st.warning(str(exc))
+    else:
+        st.caption(f"You have the maximum of {content.MAX_TRUSTED_ADULTS} labels.")
+    if not adults:
+        st.info("No trusted-grown-up labels yet. AJ can still use the support choices.")
+    for index, adult in enumerate(adults):
+        with st.container(border=True):
+            adult_key = hashlib.sha256(adult.encode("utf-8")).hexdigest()[:12]
+            with st.form("edit-social-trusted-adult-" + adult_key):
+                revised = st.text_input("Label", value=adult, max_chars=50,
+                                        key="social-trusted-adult-edit-" + adult_key)
+                if st.form_submit_button("Save label"):
+                    candidate = list(adults)
+                    candidate[index] = revised
+                    try:
+                        cleaned = content.validate_trusted_adults(candidate)
+                        db.change(lambda s: s["settings"].__setitem__("social_trusted_adults", cleaned))
+                        notify("Trusted-grown-up label updated.")
+                    except ValueError as exc:
+                        st.warning(str(exc))
+            move_left, move_right, remove_col = st.columns(3)
+            with move_left:
+                if st.button("Move up", key=f"move-trusted-adult-up-{index}", disabled=index == 0):
+                    candidate = list(adults)
+                    candidate[index - 1], candidate[index] = candidate[index], candidate[index - 1]
+                    db.change(lambda s: s["settings"].__setitem__("social_trusted_adults", candidate))
+                    notify("Trusted-grown-up label moved.")
+            with move_right:
+                if st.button("Move down", key=f"move-trusted-adult-down-{index}",
+                             disabled=index == len(adults) - 1):
+                    candidate = list(adults)
+                    candidate[index], candidate[index + 1] = candidate[index + 1], candidate[index]
+                    db.change(lambda s: s["settings"].__setitem__("social_trusted_adults", candidate))
+                    notify("Trusted-grown-up label moved.")
+            with remove_col:
+                if st.button("Remove label", key=f"remove-trusted-adult-{index}"):
+                    remaining = [label for label in adults if label != adult]
+                    db.change(lambda s: s["settings"].__setitem__("social_trusted_adults", remaining))
+                    notify("Trusted-grown-up label removed.")
+
+
 def parent_social_scenarios(state):
     st.subheader("Practice stories AJ can use")
     st.caption("Stories stay hidden from AJ until you approve them. Review the wording, choices, and illustration. These are practice prompts, not tests.")
@@ -1022,6 +1206,8 @@ def parent_portal():
     elif tab=="Social Skills & privacy":
         st.subheader("Social Skills privacy and setup")
         st.caption("AI requests are sent through Replit AI Integrations to OpenAI. AJ Academy does not save what AJ types for interpretation, audio recordings, uploaded pictures, or their transcripts. AI use may use account credits.")
+        parent_social_support_settings(state)
+        st.divider()
         with st.form("social-privacy-settings"):
             allow_ai=st.toggle("Enable AI help for interpreting words and written context",
                                value=settings.get("social_ai_enabled",False))

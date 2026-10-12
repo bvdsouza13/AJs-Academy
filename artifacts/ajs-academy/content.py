@@ -33,6 +33,101 @@ SOCIAL_NEEDS = {
                        "give him a little space while staying nearby"),
 }
 
+MAX_SOCIAL_SUPPORTS = 6
+MAX_TRUSTED_ADULTS = 8
+
+
+def validate_social_supports(items):
+    """Validate a short parent-authored list of child-facing support choices."""
+    if not isinstance(items, (list, tuple)) or not 1 <= len(items) <= MAX_SOCIAL_SUPPORTS:
+        raise ValueError(f"Keep between 1 and {MAX_SOCIAL_SUPPORTS} support choices.")
+    cleaned = []
+    seen_ids = set()
+    seen_labels = set()
+    for item in items:
+        if not isinstance(item, dict):
+            raise ValueError("Each support choice needs its own details.")
+        support_id = re.sub(r"\s+", " ", str(item.get("id") or "")).strip()
+        icon = re.sub(r"\s+", " ", str(item.get("icon") or "")).strip()
+        label = re.sub(r"\s+", " ", str(item.get("label") or "")).strip()
+        kid_request = re.sub(r"\s+", " ", str(item.get("kid_request") or "")).strip()
+        adult_request = re.sub(r"\s+", " ", str(item.get("adult_request") or "")).strip()
+        if not support_id or len(support_id) > 80:
+            raise ValueError("Each support choice needs a valid ID.")
+        if not icon or len(icon) > 8:
+            raise ValueError("Add a small picture symbol, such as a leaf or speech bubble.")
+        if not label or len(label) > 40:
+            raise ValueError("Support labels need 1–40 characters.")
+        if not kid_request or len(kid_request) > 160:
+            raise ValueError("Kid-friendly requests need 1–160 characters.")
+        if not adult_request or len(adult_request) > 160:
+            raise ValueError("Grown-up wording needs 1–160 characters.")
+        if support_id in seen_ids or label.casefold() in seen_labels:
+            raise ValueError("Each support choice needs a different label.")
+        seen_ids.add(support_id)
+        seen_labels.add(label.casefold())
+        cleaned.append({
+            "id": support_id, "icon": icon, "label": label,
+            "kid_request": kid_request, "adult_request": adult_request,
+        })
+    return cleaned
+
+
+def available_social_supports(items):
+    """Return valid saved choices, or built-in defaults for older family data."""
+    if not isinstance(items, (list, tuple)):
+        return None
+    try:
+        return validate_social_supports(items)
+    except (TypeError, ValueError):
+        return None
+
+
+def available_trusted_adults(items):
+    """Return saved labels, or no options when legacy data is malformed."""
+    try:
+        return validate_trusted_adults(items)
+    except (TypeError, ValueError):
+        return []
+
+
+def validate_trusted_adults(items):
+    """Validate short relationship labels only; no contact details are accepted."""
+    if not isinstance(items, (list, tuple)) or len(items) > MAX_TRUSTED_ADULTS:
+        raise ValueError(f"Add no more than {MAX_TRUSTED_ADULTS} trusted-adult labels.")
+    cleaned = []
+    seen = set()
+    for item in items:
+        label = re.sub(r"\s+", " ", str(item or "")).strip()
+        if not label or len(label) > 50:
+            raise ValueError("Trusted-adult labels need 1–50 characters.")
+        if label.casefold() in seen:
+            raise ValueError("Each trusted-adult label needs to be different.")
+        seen.add(label.casefold())
+        cleaned.append(label)
+    return cleaned
+
+
+def social_support_scripts(support, context="", trusted_adult=""):
+    """Build editable, local-only request wording from a parent-authored support."""
+    kid_request = re.sub(r"\s+", " ", str(support.get("kid_request") or "")).strip()
+    adult_request = re.sub(r"\s+", " ", str(support.get("adult_request") or "")).strip()
+    context = re.sub(r"\s+", " ", str(context or "")).strip()[:240].rstrip(" .")
+    trusted_adult = re.sub(r"\s+", " ", str(trusted_adult or "")).strip()[:50]
+    kid = kid_request
+    adult = (
+        f"AJ may need support with: {support.get('label', 'this support').strip().lower()}. "
+        f"{adult_request}"
+    )
+    if context:
+        kid += f" I want to tell you: {context}."
+        adult += f" AJ said: {context}."
+    if trusted_adult:
+        kid += f" I would like to talk with someone I trust: {trusted_adult}."
+        adult += f" AJ chose {trusted_adult} as someone he would like to talk with."
+    return {"kid": kid, "adult": adult}
+
+
 SOCIAL_SCENARIO_ART = ("join_game", "confusing_words", "taking_turns", "ask_again")
 SOCIAL_SCENARIO_STARTERS = [
     {

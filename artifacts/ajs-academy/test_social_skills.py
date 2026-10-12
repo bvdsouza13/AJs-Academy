@@ -77,6 +77,45 @@ class SocialSkillsTests(unittest.TestCase):
         scripts = content.social_scripts("unexpected", "", "unexpected")
         self.assertEqual(scripts["kid"], "I'm feeling unsure. Could you help me find my parent or another grown-up I trust?")
 
+    def test_parent_support_settings_are_limited_and_normalized(self):
+        support = {
+            "id": "walk", "icon": " 🌱 ", "label": " Movement break ",
+            "kid_request": " Could I walk for a moment? ",
+            "adult_request": " Please help AJ take a short walk. ",
+        }
+        result = content.validate_social_supports([support])
+        self.assertEqual(result[0], {
+            "id": "walk", "icon": "🌱", "label": "Movement break",
+            "kid_request": "Could I walk for a moment?",
+            "adult_request": "Please help AJ take a short walk.",
+        })
+        with self.assertRaisesRegex(ValueError, "different label"):
+            content.validate_social_supports([support, {**support, "id": "another"}])
+        with self.assertRaisesRegex(ValueError, "between 1 and 6"):
+            content.validate_social_supports([])
+
+    def test_trusted_adult_labels_and_local_support_scripts(self):
+        support = {
+            "label": "A quiet moment",
+            "kid_request": "Could I have a quiet moment?",
+            "adult_request": "Please help AJ find a quiet place.",
+        }
+        labels = content.validate_trusted_adults([" My teacher ", "Coach"])
+        self.assertEqual(labels, ["My teacher", "Coach"])
+        scripts = content.social_support_scripts(
+            support, "the room is loud", labels[0]
+        )
+        self.assertEqual(
+            scripts["kid"],
+            "Could I have a quiet moment? I want to tell you: the room is loud. "
+            "I would like to talk with someone I trust: My teacher.",
+        )
+        self.assertIn("Please help AJ find a quiet place.", scripts["adult"])
+        self.assertIn("AJ chose My teacher", scripts["adult"])
+        self.assertNotIn("feeling", scripts["kid"].lower())
+        with self.assertRaisesRegex(ValueError, "different"):
+            content.validate_trusted_adults(["Teacher", " teacher "])
+
     def test_interpretation_requires_some_input_without_calling_ai(self):
         with patch.object(content, "client") as client:
             with self.assertRaises(ValueError):
